@@ -6,7 +6,7 @@
 - FastAPI implementada para importação e consulta, reutilizando o núcleo sem regras duplicadas.
 - SQLAlchemy e Alembic implementados. PostgreSQL/PostGIS é o alvo; SQLite atende desenvolvimento local.
 - Flutter como escolha inicial para Android primeiro; confirmar viabilidade de GPS e voz com tela bloqueada em aparelho real antes de ampliar a interface.
-- Provedor de mapas atrás de interfaces para matriz pedestre, matriz veicular e geometria. Seleção final depende de cobertura, custo e termos de uso. Não há provedor contratado nem chamadas externas nesta etapa.
+- Provedor de mapas atrás da interface de matriz pedestre. O adaptador OSRM e o modo estimado local estão implementados; matriz veicular e geometria entram quando seus fluxos forem usados.
 - Fila de processamento quando a integração de mapas tornar as operações demoradas; não adicionar Redis/Celery antes dessa necessidade.
 
 ## Fluxo
@@ -22,7 +22,9 @@ A macro-parada representa uma base de estacionamento, com um ou mais circuitos d
 | importacao | Hash, versão do contrato, origem, análise e status |
 | rota | Motorista, operação, versão do plano |
 | pacote | Identificador, endereço, referência original e estado |
-| endereco | Entrada geográfica revisada, complemento e proveniência |
+| ponto_entrega | Entrada original, coordenada importada, coordenada efetiva e proveniência da revisão |
+| matriz_pedestre | Versão do provedor, perfil, hash das entradas e contagens de acessibilidade |
+| matriz_pedestre_par | Custo dirigido entre dois pontos ou motivo explícito da inacessibilidade |
 | macro_parada | Base planejada e ordem veicular |
 | macro_parada_endereco | Associação dos endereços ao plano |
 | sessao_macro_parada | Execução e GPS real do estacionamento |
@@ -30,7 +32,7 @@ A macro-parada representa uma base de estacionamento, com um ou mais circuitos d
 | bag_item | Pacote carregado, retirada e resultado |
 | evento_entrega | Confirmação auditável e chave idempotente |
 
-Na etapa 2 foram implementadas importação, rota e pacote. As entidades de execução entram quando seus fluxos existirem, evitando tabelas especulativas sem comportamento validado.
+Importação, rota, pacote, ponto de entrega e matriz pedestre estão implementados. As entidades de execução entram quando seus fluxos existirem, evitando tabelas especulativas sem comportamento validado.
 
 `sessao_macro_parada.veiculo_estacionado_em` será geography(Point,4326), acompanhado de precisão em metros, instante e confirmação por voz/botão. Nunca substituir pelo centro calculado do cluster.
 
@@ -47,11 +49,11 @@ Na etapa 2 foram implementadas importação, rota e pacote. As entidades de exec
 7. Eventos offline são reprocessáveis sem duplicar entregas.
 8. Reotimização preserva execução em andamento.
 
-## Referências para a etapa de mapas
+## Referências de mapas
 
 - https://developers.google.com/maps/documentation/routes/compute_route_matrix
 - https://developers.google.com/maps/documentation/routes/reference/rest/v2/RouteTravelMode
-- https://project-osrm.org/docs/v5.22.0/api/
+- https://project-osrm.org/docs/v5.24.0/api/
 - https://developers.google.com/optimization/routing/routing_tasks
 
 Rever limites, suporte e condições atuais quando a integração for implementada.

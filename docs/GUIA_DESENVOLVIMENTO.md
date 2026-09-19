@@ -15,7 +15,7 @@ Manter uma etapa principal em andamento. Evitar trocar de stack sem necessidade 
 | 0 | Análise, Git e documentação | Estrutura real entendida; dados protegidos do histórico | Concluída |
 | 1 | Importador local | 32 pacotes preservados; validações e testes de regressão | Implementada |
 | 2 | API e persistência | Importar, consultar e revisar rota; mesma importação não duplica pacotes; migrações testadas | Implementada |
-| 3 | Revisão geográfica e mapas | Conferir entradas e coordenadas; matriz caminhável com inacessíveis explícitos | Próxima |
+| 3 | Revisão geográfica e mapas | Conferir entradas e coordenadas; matriz caminhável com inacessíveis explícitos | Em validação operacional |
 | 4 | Macro-paradas | Capacidade e caminhada limitadas; nenhum pacote perdido; comparação com original | Pendente |
 | 5 | Ordem veicular e circuitos | Rota pedestre retorna ao carro; estacionamentos acessíveis; custos mensuráveis | Pendente |
 | 6 | Mobile operacional | Confirmar estacionamento, preparar bag e registrar entregas | Pendente |
@@ -24,14 +24,16 @@ Manter uma etapa principal em andamento. Evitar trocar de stack sem necessidade 
 
 A prova técnica de GPS/áudio em Android deve ocorrer antes de investir na interface completa, idealmente ao concluir a etapa 3. Não esperar o final para descobrir restrições de execução em segundo plano.
 
-## Próxima sessão: etapa 3
+## Etapa 3: estado atual
 
-1. Definir uma interface de provedor de mapas independente de Google, Mapbox ou OSRM.
-2. Criar revisão de endereço/entrada sem alterar o valor original importado.
-3. Calcular e armazenar matriz pedestre com resultados inacessíveis explícitos.
-4. Avaliar Avenida dos Ourives da amostra com distância de rede, não somente texto.
-5. Preparar a prova técnica Android de GPS e áudio em segundo plano.
-6. Documentar custo, cobertura e limites do provedor escolhido antes de formar clusters.
+1. Interface de provedor, adaptador OSRM e estimativa local implementados.
+2. Revisão preserva os valores importados e mantém coordenadas efetivas separadas.
+3. Matriz persistida e idempotente registra resultados inacessíveis explicitamente.
+4. Custos, cobertura e limites dos provedores estão documentados em `ETAPA_3_GEOGRAFIA_MAPAS.md`.
+5. Falta avaliar a Avenida dos Ourives em um OSRM com perfil pedestre da região.
+6. Falta a prova técnica Android de GPS e áudio em segundo plano.
+
+Macro-paradas entram depois desses dois testes operacionais. A API rejeita pontos geográficos marcados como inválidos, e matrizes `estimate_only` não servem como evidência de viabilidade pedestre.
 
 ## Rotina de qualidade
 
@@ -65,3 +67,12 @@ Branch principal: main. O remoto público é `alexsandrors0312/jet_rapido`. Dado
 - A planilha real passou pela API: 32 pacotes, uma rota, quatro avisos e um candidato de rua dividida.
 - CI configurado para testar a migração e a importação em PostgreSQL descartável.
 - Autenticação, mapas, correção geográfica e mobile continuam fora desta etapa.
+
+## Registro da terceira entrega — núcleo de backend
+
+- Pontos de entrega deduplicados por endereço dentro da rota, sem fundir pacotes.
+- Coordenadas importadas imutáveis e coordenadas efetivas revisáveis com estado, origem, nota e instante.
+- Migração retrocompatível que cria pontos para pacotes gravados na etapa 2.
+- Provedores intercambiáveis para matriz pedestre: OSRM em rede e estimativa local identificada.
+- Matrizes completas, pagináveis, idempotentes e com pares inacessíveis explícitos.
+- Cobertura pedestre local e prova Android permanecem como validações operacionais da etapa.

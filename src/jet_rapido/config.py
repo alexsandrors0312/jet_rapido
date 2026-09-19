@@ -10,11 +10,25 @@ class Settings:
     max_upload_bytes: int = 5 * 1024 * 1024
     max_xlsx_uncompressed_bytes: int = 50 * 1024 * 1024
     max_xlsx_entries: int = 1_000
+    map_provider: str = "straight_line"
+    max_matrix_points: int = 200
+    osrm_base_url: str = "http://localhost:5000"
+    osrm_profile: str = "foot"
+    osrm_timeout_seconds: float = 20.0
+    osrm_block_size: int = 50
+    straight_line_detour_factor: float = 1.25
+    walking_speed_mps: float = 1.3
 
     def __post_init__(self) -> None:
         if not self.database_url.strip():
             raise ValueError("DATABASE_URL não pode ser vazia.")
-        for name in ("max_upload_bytes", "max_xlsx_uncompressed_bytes", "max_xlsx_entries"):
+        for name in (
+            "max_upload_bytes", "max_xlsx_uncompressed_bytes", "max_xlsx_entries",
+            "max_matrix_points", "osrm_block_size",
+        ):
+            if getattr(self, name) <= 0:
+                raise ValueError(f"{name} deve ser positivo.")
+        for name in ("osrm_timeout_seconds", "straight_line_detour_factor", "walking_speed_mps"):
             if getattr(self, name) <= 0:
                 raise ValueError(f"{name} deve ser positivo.")
 
@@ -27,4 +41,14 @@ class Settings:
                 os.getenv("MAX_XLSX_UNCOMPRESSED_BYTES", cls.max_xlsx_uncompressed_bytes)
             ),
             max_xlsx_entries=int(os.getenv("MAX_XLSX_ENTRIES", cls.max_xlsx_entries)),
+            map_provider=os.getenv("MAP_PROVIDER", cls.map_provider),
+            max_matrix_points=int(os.getenv("MAX_MATRIX_POINTS", cls.max_matrix_points)),
+            osrm_base_url=os.getenv("OSRM_BASE_URL", cls.osrm_base_url),
+            osrm_profile=os.getenv("OSRM_PROFILE", cls.osrm_profile),
+            osrm_timeout_seconds=float(os.getenv("OSRM_TIMEOUT_SECONDS", cls.osrm_timeout_seconds)),
+            osrm_block_size=int(os.getenv("OSRM_BLOCK_SIZE", cls.osrm_block_size)),
+            straight_line_detour_factor=float(
+                os.getenv("STRAIGHT_LINE_DETOUR_FACTOR", cls.straight_line_detour_factor)
+            ),
+            walking_speed_mps=float(os.getenv("WALKING_SPEED_MPS", cls.walking_speed_mps)),
         )

@@ -2,7 +2,7 @@
 
 Assistente de entregas last-mile: planejar onde estacionar, quais pacotes levar e como fazer o circuito a pé até voltar ao carro.
 
-**Estado: etapa 2 implementada — API e persistência.** A aplicação importa o XLSX, grava rotas e pacotes, evita duplicação do mesmo arquivo e permite revisar uma rota. Macro-paradas, mapas e aplicativo mobile continuam nas próximas etapas.
+**Estado: etapa 3 em validação operacional — revisão geográfica e mapas.** A aplicação importa o XLSX, preserva endereços e coordenadas originais, permite confirmar ou corrigir pontos e persiste matrizes pedestres auditáveis. O adaptador OSRM está implementado; a cobertura da região ainda precisa ser validada em um serviço com perfil pedestre antes de formar macro-paradas.
 
 ## Executar no Windows
 
@@ -29,6 +29,8 @@ A documentação interativa fica em http://127.0.0.1:8000/docs. Para importar a 
 ```powershell
 curl.exe -F "file=@C:\caminho\rota shoppe.xlsx" http://127.0.0.1:8000/api/v1/imports
 ```
+
+O provedor padrão `straight_line` serve para testes locais e identifica a matriz como `estimate_only`. Para usar rede pedestre, configure `MAP_PROVIDER=osrm` e aponte `OSRM_BASE_URL` para um serviço preparado com o extrato e perfil da região. Consulte o guia da etapa 3 antes de usar uma matriz em clusterização.
 
 ## Iniciar com PostgreSQL/PostGIS
 
@@ -57,6 +59,7 @@ O resumo do terminal contém apenas contagens. O JSON contém endereços, coorde
 - [Análise da planilha recebida](docs/ANALISE_PLANILHA.md)
 - [Contrato de importação](docs/IMPORTACAO.md)
 - [API e persistência](docs/ETAPA_2_API.md)
+- [Revisão geográfica e mapas](docs/ETAPA_3_GEOGRAFIA_MAPAS.md)
 - [Arquitetura e modelo de dados planejados](docs/ARQUITETURA.md)
 
 Repositório público: https://github.com/alexsandrors0312/jet_rapido. Nunca enviar planilhas, JSON de análise ou bancos locais ao Git.

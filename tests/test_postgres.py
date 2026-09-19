@@ -41,6 +41,18 @@ class PostgresIntegrationTests(unittest.TestCase):
         self.assertEqual(first.status_code, 201, first.text)
         self.assertEqual(second.status_code, 200, second.text)
         self.assertEqual(first.json()["id"], second.json()["id"])
+        route_id = first.json()["routes"][0]["id"]
+        points = self.client.get(f"/api/v1/routes/{route_id}/delivery-points")
+        self.assertEqual(points.status_code, 200, points.text)
+        self.assertEqual(len(points.json()), 1)
+        confirmation = self.client.post(
+            f"/api/v1/routes/{route_id}/delivery-points/confirm-imported"
+        )
+        self.assertEqual(confirmation.status_code, 200, confirmation.text)
+        matrix = self.client.post(f"/api/v1/routes/{route_id}/walking-matrices", json={})
+        self.assertEqual(matrix.status_code, 201, matrix.text)
+        self.assertEqual(matrix.json()["quality"], "estimate_only")
+        self.assertEqual(matrix.json()["reachable_pairs"], 1)
 
 
 if __name__ == "__main__":

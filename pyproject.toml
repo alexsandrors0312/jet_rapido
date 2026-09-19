@@ -4,12 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "jet-rapido"
-version = "0.2.0"
+version = "0.3.0"
 description = "Importação e planejamento de entregas last-mile"
 requires-python = ">=3.12"
 dependencies = [
     "alembic>=1.14,<2",
     "fastapi>=0.115,<1",
+    "httpx2>=2.13,<3",
     "openpyxl>=3.1.5,<4",
     "psycopg[binary]>=3.2,<4",
     "python-multipart>=0.0.18,<1",
@@ -18,7 +19,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["httpx2>=2.13,<3"]
+dev = []
 
 [project.scripts]
 jet-rapido = "jet_rapido.cli:main"
