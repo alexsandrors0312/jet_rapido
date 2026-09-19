@@ -3,8 +3,8 @@
 ## Decisões
 
 - Python para domínio, importação e otimização. Etapa atual depende somente de openpyxl.
-- FastAPI para API na próxima etapa, reutilizando o núcleo sem regras duplicadas.
-- PostgreSQL/PostGIS e migrações para persistência de rotas e execução.
+- FastAPI implementada para importação e consulta, reutilizando o núcleo sem regras duplicadas.
+- SQLAlchemy e Alembic implementados. PostgreSQL/PostGIS é o alvo; SQLite atende desenvolvimento local.
 - Flutter como escolha inicial para Android primeiro; confirmar viabilidade de GPS e voz com tela bloqueada em aparelho real antes de ampliar a interface.
 - Provedor de mapas atrás de interfaces para matriz pedestre, matriz veicular e geometria. Seleção final depende de cobertura, custo e termos de uso. Não há provedor contratado nem chamadas externas nesta etapa.
 - Fila de processamento quando a integração de mapas tornar as operações demoradas; não adicionar Redis/Celery antes dessa necessidade.
@@ -19,7 +19,7 @@ A macro-parada representa uma base de estacionamento, com um ou mais circuitos d
 
 | Entidade | Responsabilidade |
 | --- | --- |
-| importacao | Hash, versão do contrato, origem e status |
+| importacao | Hash, versão do contrato, origem, análise e status |
 | rota | Motorista, operação, versão do plano |
 | pacote | Identificador, endereço, referência original e estado |
 | endereco | Entrada geográfica revisada, complemento e proveniência |
@@ -29,6 +29,8 @@ A macro-parada representa uma base de estacionamento, com um ou mais circuitos d
 | circuito_bag | Percurso a pé com início/fim no veículo |
 | bag_item | Pacote carregado, retirada e resultado |
 | evento_entrega | Confirmação auditável e chave idempotente |
+
+Na etapa 2 foram implementadas importação, rota e pacote. As entidades de execução entram quando seus fluxos existirem, evitando tabelas especulativas sem comportamento validado.
 
 `sessao_macro_parada.veiculo_estacionado_em` será geography(Point,4326), acompanhado de precisão em metros, instante e confirmação por voz/botão. Nunca substituir pelo centro calculado do cluster.
 

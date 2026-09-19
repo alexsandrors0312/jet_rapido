@@ -25,8 +25,8 @@ Ausência de sequência/parada, endereço S/N, CEP fora do padrão e coordenada 
 
 `street_key` retira acentos, padroniza espaços e abreviações iniciais R/Av/Tv e inclui a cidade. É uma chave candidata, não identifica trecho físico. Bairro e CEP originais permanecem disponíveis para revisão. A parte após a primeira vírgula permanece no endereço original.
 
+Na API, o SHA-256 é uma chave idempotente: reenviar o mesmo arquivo não duplica rotas ou pacotes. A importação inteira ocorre em uma transação. Restrições únicas no banco reforçam a regra em requisições concorrentes.
+
 ## Limites da etapa
 
-Ainda não há upload HTTP, persistência idempotente, correção assistida por linha, proteção de serviço contra arquivos enormes ou suporte a formatos de outros operadores. Antes de expor a API, implementar limites de arquivo/descompressão, validação de conteúdo e erros estruturados.
-
-O hash permite rastrear o arquivo, mas não significa que a idempotência de banco já foi implementada. O importador não verifica a entrega no provedor nem chama serviços externos.
+Ainda não há correção assistida por linha, deduplicação semântica entre reexportações ou suporte a formatos de outros operadores. O importador não verifica a entrega no provedor nem chama serviços externos.

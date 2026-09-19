@@ -52,10 +52,13 @@ def street_key(address: str, city: str) -> str:
     return f"{normalized_text(city)}|{street}"
 
 
-def _text(value, field: str, row: int) -> str:
+def _text(value, field: str, row: int, max_length: int) -> str:
     if not isinstance(value, str) or not value.strip() or value.strip() == "-":
         raise ImportValidationError(f"Linha {row}: {field} deve ser texto preenchido.")
-    return value.strip()
+    value = value.strip()
+    if len(value) > max_length:
+        raise ImportValidationError(f"Linha {row}: {field} excede {max_length} caracteres.")
+    return value
 
 
 def _position(value, field: str, row: int) -> int | None:
@@ -112,12 +115,21 @@ def import_workbook(path: str | Path, sheet: str | None = None) -> dict:
             if any(c.data_type in ("f", "e") for c in cells):
                 raise ImportValidationError(f"Linha {row_number}: fórmula ou erro de Excel não permitido.")
             values = dict(zip(names, [c.value for c in cells]))
-            t = {h: _text(values.get(h), h, row_number) for h in (
-                "AT ID", "SPX TN", "Destination Address", "Bairro", "City", "Zipcode/Postal code",
-            )}
+            limits = {
+                "AT ID": 255,
+                "SPX TN": 255,
+                "Destination Address": 1000,
+                "Bairro": 255,
+                "City": 255,
+                "Zipcode/Postal code": 32,
+            }
+            t = {h: _text(values.get(h), h, row_number, limit) for h, limit in limits.items()}
             if t["SPX TN"] in seen:
                 raise ImportValidationError(f"Linha {row_number}: identificador de pacote duplicado.")
             seen.add(t["SPX TN"])
+            candidate_street_key = street_key(t["Destination Address"], t["City"])
+            if len(candidate_street_key) > 512:
+                raise ImportValidationError(f"Linha {row_number}: chave de rua excede 512 caracteres.")
             package = Package(
                 source_row=row_number, route_id=t["AT ID"], tracking_id=t["SPX TN"],
                 original_sequence=_position(values.get("Sequence"), "Sequence", row_number),
@@ -126,7 +138,7 @@ def import_workbook(path: str | Path, sheet: str | None = None) -> dict:
                 postal_code=t["Zipcode/Postal code"],
                 latitude=_coordinate(values.get("Latitude"), 90, "Latitude", row_number),
                 longitude=_coordinate(values.get("Longitude"), 180, "Longitude", row_number),
-                street_key=street_key(t["Destination Address"], t["City"]),
+                street_key=candidate_street_key,
             )
             if package.original_stop is None or package.original_sequence is None:
                 warnings.append({"row": row_number, "code": "MISSING_ORIGINAL_ORDER"})
@@ -147,6 +159,7 @@ def import_workbook(path: str | Path, sheet: str | None = None) -> dict:
             stops = sorted({p.original_stop for p in members if p.original_stop is not None})
             if len(stops) > 1:
                 split_streets.append({
+                    "route_id": members[0].route_id,
                     "street_key": key, "original_stops": stops,
                     "source_rows": [p.source_row for p in members],
                     "package_count": len(members),

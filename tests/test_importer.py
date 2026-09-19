@@ -98,6 +98,12 @@ class ImportTests(unittest.TestCase):
         with self.assertRaisesRegex(ImportValidationError, "inteiro"):
             self.load([row(stop=1.5)])
 
+    def test_oversized_identifier_rejected(self):
+        record = row()
+        record[3] = "X" * 256
+        with self.assertRaisesRegex(ImportValidationError, "excede 255"):
+            self.load([record])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -4,13 +4,28 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "jet-rapido"
-version = "0.1.0"
+version = "0.2.0"
 description = "Importação e planejamento de entregas last-mile"
 requires-python = ">=3.12"
-dependencies = ["openpyxl==3.1.5"]
+dependencies = [
+    "alembic>=1.14,<2",
+    "fastapi>=0.115,<1",
+    "openpyxl>=3.1.5,<4",
+    "psycopg[binary]>=3.2,<4",
+    "python-multipart>=0.0.18,<1",
+    "sqlalchemy>=2.0,<3",
+    "uvicorn[standard]>=0.32,<1",
+]
+
+[project.optional-dependencies]
+dev = ["httpx2>=2.13,<3"]
 
 [project.scripts]
 jet-rapido = "jet_rapido.cli:main"
+jet-rapido-api = "jet_rapido.api:run"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.unittest]
+start-directory = "tests"
