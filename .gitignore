@@ -1,0 +1,19 @@
+# Dados de entregas e arquivos locais nunca entram no histórico.
+*.xlsx
+*.xls
+*.csv
+*.json
+data/
+outputs/
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+dist/
+build/
+.DS_Store
