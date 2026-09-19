@@ -21,11 +21,13 @@ class PostgresIntegrationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         migrate(POSTGRES_URL)
-        cls.client = TestClient(create_app(Settings(database_url=POSTGRES_URL)))
+        cls.app = create_app(Settings(database_url=POSTGRES_URL))
+        cls.client = TestClient(cls.app)
 
     @classmethod
     def tearDownClass(cls):
         cls.client.close()
+        cls.app.state.engine.dispose()
 
     def test_import_is_idempotent_on_postgres(self):
         with tempfile.TemporaryDirectory() as directory:
