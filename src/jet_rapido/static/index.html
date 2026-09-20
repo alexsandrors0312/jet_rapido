@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Jet Rápido • Revisão geográfica</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <link rel="stylesheet" href="/static/review.css">
+  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script defer src="/static/review.js"></script>
+</head>
+<body>
+  <header><a class="brand" href="/">jet<span>rápido</span><small>OPERAÇÃO LAST-MILE</small></a><span class="stage">03 / Revisão geográfica</span><a href="/docs" class="api-link">Documentação da API ↗</a></header>
+  <main>
+    <div class="heading"><div><p class="eyebrow">PREPARAR A ROTA</p><h1>Cada entrega começa<br>na entrada certa.</h1><p>Confira os pontos, ajuste os acessos e prepare a base de caminhada.</p></div><form id="upload-form"><label for="file">Importar rota</label><input id="file" type="file" accept=".xlsx" required><button type="submit">Importar planilha</button></form></div>
+    <p id="notice" role="status" aria-live="polite">Carregando rotas…</p>
+    <section class="toolbar" aria-label="Selecionar rota"><label>Rota<select id="routes"><option value="">Selecione uma rota</option></select></label><button id="reload" class="secondary">Atualizar</button><p id="summary">Importe uma planilha para começar.</p></section>
+    <div class="workspace">
+      <aside class="points-panel"><div class="panel-heading"><h2>Pontos de entrega</h2><span id="point-count" class="pill">0</span></div><label class="search-label">Buscar endereço<input id="search" type="search" placeholder="Rua, bairro ou número"></label><label class="search-label">Situação<select id="filter"><option value="all">Todas</option><option value="pending">Pendentes</option><option value="confirmed">Confirmados</option><option value="corrected">Corrigidos</option><option value="rejected">Rejeitados</option></select></label><div id="points" class="points" aria-label="Lista de pontos"></div></aside>
+      <section class="map-panel" aria-label="Mapa dos pontos"><div class="map-tools"><button id="fit" class="secondary">Enquadrar pontos</button><button id="tiles" class="secondary">Mostrar ruas</button></div><div id="map"></div><p class="map-note" id="map-note">Selecione um ponto. Clique no mapa para propor a entrada; salve no painel ao lado. “Mostrar ruas” consulta o OpenStreetMap para a área visível.</p><div class="legend"><span>◌ Importado</span><span>● Entrada efetiva</span><span>◆ Ajuste ainda não salvo</span></div></section>
+      <aside class="editor-panel"><h2>Revisar entrada</h2><p id="selection-empty">Escolha um endereço na lista ou no mapa.</p><form id="review-form" hidden><h3 id="address"></h3><p id="point-meta"></p><p class="original" id="original"></p><label>Decisão<select id="review-status"><option value="confirmed">Confirmar coordenada importada</option><option value="corrected">Corrigir entrada</option><option value="rejected">Rejeitar ponto</option></select></label><div class="coordinates"><label>Latitude<input id="latitude" type="number" step="any" min="-90" max="90" required></label><label>Longitude<input id="longitude" type="number" step="any" min="-180" max="180" required></label></div><label>Observação<textarea id="note" maxlength="2000" rows="3" placeholder="Ex.: portão de entrada na rua lateral"></textarea></label><button type="submit">Salvar revisão</button><button type="button" id="discard" class="secondary">Descartar ajuste</button><details><summary>Histórico de revisões</summary><ol id="history"></ol></details></form></aside>
+    </div>
+    <section class="matrix-panel"><div><p class="eyebrow">DISTÂNCIAS ENTRE ENTRADAS</p><h2>Matrizes de caminhada</h2><p id="provider">Carregando provedor…</p></div><button id="compute" disabled>Calcular matriz</button><p id="matrix-help">Revise todos os pontos para calcular.</p><div class="table-scroll"><table><thead><tr><th>Criada em</th><th>Origem</th><th>Pontos</th><th>Sem caminho</th><th>Estado</th><th>Consulta</th></tr></thead><tbody id="matrices"></tbody></table></div><div id="matrix-detail" hidden><h3>Pares da matriz</h3><p id="matrix-detail-summary"></p><div class="table-scroll"><table><thead><tr><th>Origem</th><th>Destino</th><th>Distância</th><th>Tempo</th><th>Acesso</th></tr></thead><tbody id="entries"></tbody></table></div><button id="more-entries" class="secondary" hidden>Carregar mais pares</button></div></section>
+    <footer>Jet Rápido · Revisão de entradas antes do planejamento · As paradas originais continuam preservadas.</footer>
+  </main>
+</body>
+</html>

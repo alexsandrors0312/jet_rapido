@@ -1,6 +1,7 @@
 """Provedores intercambiáveis de matriz pedestre."""
 
 from dataclasses import dataclass
+from hashlib import sha256
 from math import isfinite
 import re
 from typing import Protocol
@@ -61,6 +62,10 @@ class StraightLineWalkingProvider:
         self.detour_factor = detour_factor
         self.walking_speed_mps = walking_speed_mps
 
+    @property
+    def cache_key(self) -> str:
+        return f"straight-v2:{self.detour_factor}:{self.walking_speed_mps}"
+
     def compute(self, points: list[MatrixPoint]) -> MatrixComputation:
         cells = []
         for origin in points:
@@ -89,7 +94,8 @@ class OSRMWalkingProvider:
     name = "osrm"
     quality = "network"
 
-    def __init__(self, *, base_url: str, profile: str, timeout_seconds: float, block_size: int):
+    def __init__(self, *, base_url: str, profile: str, timeout_seconds: float, block_size: int,
+                 dataset_revision: str = "unverified", snap_radius_m: float = 50):
         if not base_url.startswith(("http://", "https://")):
             raise ValueError("OSRM_BASE_URL deve usar http ou https.")
         if not re.fullmatch(r"[A-Za-z0-9_-]+", profile):
@@ -98,9 +104,23 @@ class OSRMWalkingProvider:
         self.profile = profile
         self.timeout_seconds = timeout_seconds
         self.block_size = block_size
+        self.dataset_revision = dataset_revision
+        self.snap_radius_m = snap_radius_m
+        if block_size <= 0 or not isfinite(timeout_seconds) or timeout_seconds <= 0:
+            raise ValueError("Timeout e tamanho de bloco devem ser positivos.")
+        if not isfinite(snap_radius_m) or snap_radius_m <= 0:
+            raise ValueError("Raio de associação à rede deve ser positivo.")
+
+    @property
+    def cache_key(self) -> str:
+        # A configuração identifica o extrato sem expor o endereço privado do serviço.
+        identity = f"osrm-v2:{self.base_url}:{self.profile}:{self.dataset_revision}:{self.snap_radius_m}"
+        return sha256(identity.encode()).hexdigest()
 
     @staticmethod
     def _number(value, *, field: str) -> float:
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise MapProviderError(f"OSRM retornou {field} inválida.")
         number = float(value)
         if not isfinite(number) or number < 0:
             raise MapProviderError(f"OSRM retornou {field} inválida.")
@@ -129,9 +149,12 @@ class OSRMWalkingProvider:
                             "destinations": destination_indexes,
                             "annotations": "distance,duration",
                             "skip_waypoints": "true",
+                            "radiuses": ";".join(str(self.snap_radius_m) for _ in combined),
                         })
                         response.raise_for_status()
                         payload = response.json()
+                        if not isinstance(payload, dict):
+                            raise MapProviderError("Resposta OSRM inválida.")
                         if payload.get("code") != "Ok":
                             raise MapProviderError(f"OSRM recusou a matriz: {payload.get('code', 'UNKNOWN')}.")
                         distances = payload.get("distances")
@@ -144,10 +167,14 @@ class OSRMWalkingProvider:
                         if data_version:
                             versions.add(str(data_version))
                         for i, origin in enumerate(origins):
+                            if not isinstance(distances[i], list) or not isinstance(durations[i], list):
+                                raise MapProviderError("Linha OSRM inválida.")
                             if len(distances[i]) != len(destinations) or len(durations[i]) != len(destinations):
                                 raise MapProviderError("OSRM retornou uma linha de matriz incompleta.")
                             for j, destination in enumerate(destinations):
                                 distance, duration = distances[i][j], durations[i][j]
+                                if (distance is None) != (duration is None):
+                                    raise MapProviderError("Custo OSRM parcialmente nulo.")
                                 reachable = distance is not None and duration is not None
                                 cells.append(MatrixCell(
                                     origin_id=origin.id,
@@ -164,7 +191,9 @@ class OSRMWalkingProvider:
 
         if len(cells) != len(points) ** 2:
             raise MapProviderError("OSRM retornou uma matriz incompleta.")
-        dataset_version = next(iter(versions)) if len(versions) == 1 else None
+        if len(versions) > 1:
+            raise MapProviderError("O extrato OSRM mudou entre os blocos. Repita a operação.")
+        dataset_version = next(iter(versions)) if versions else self.dataset_revision
         return MatrixComputation(
             provider=self.name,
             profile=self.profile,
@@ -186,5 +215,7 @@ def build_walking_provider(settings: Settings) -> WalkingMatrixProvider:
             profile=settings.osrm_profile,
             timeout_seconds=settings.osrm_timeout_seconds,
             block_size=settings.osrm_block_size,
+            dataset_revision=settings.osrm_dataset_revision,
+            snap_radius_m=settings.osrm_snap_radius_m,
         )
     raise ValueError(f"MAP_PROVIDER não suportado: {settings.map_provider}.")

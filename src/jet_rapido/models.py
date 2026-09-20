@@ -92,6 +92,7 @@ class DeliveryPoint(Base):
     effective_latitude: Mapped[float] = mapped_column(Float, nullable=False)
     effective_longitude: Mapped[float] = mapped_column(Float, nullable=False)
     review_status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     review_source: Mapped[str | None] = mapped_column(String(32), nullable=True)
     review_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -158,6 +159,7 @@ class WalkingMatrix(Base):
     profile: Mapped[str] = mapped_column(String(64), nullable=False)
     quality: Mapped[str] = mapped_column(String(32), nullable=False)
     input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    input_snapshot: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     point_count: Mapped[int] = mapped_column(Integer, nullable=False)
     reachable_pairs: Mapped[int] = mapped_column(Integer, nullable=False)
     unreachable_pairs: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -195,3 +197,18 @@ class WalkingMatrixEntry(Base):
     error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     matrix: Mapped[WalkingMatrix] = relationship(back_populates="entries")
+
+
+class DeliveryPointReview(Base):
+    __tablename__ = "delivery_point_reviews"
+    __table_args__ = (
+        UniqueConstraint("delivery_point_id", "revision", name="uq_point_review_revision"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    delivery_point_id: Mapped[str] = mapped_column(
+        ForeignKey("delivery_points.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    before: Mapped[dict] = mapped_column(JSON, nullable=False)
+    after: Mapped[dict] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)

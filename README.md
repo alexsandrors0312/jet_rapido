@@ -4,6 +4,18 @@ Assistente de entregas last-mile: planejar onde estacionar, quais pacotes levar 
 
 **Estado: etapa 3 em validação operacional — revisão geográfica e mapas.** A aplicação importa o XLSX, preserva endereços e coordenadas originais, permite confirmar ou corrigir pontos e persiste matrizes pedestres auditáveis. O adaptador OSRM está implementado; a cobertura da região ainda precisa ser validada em um serviço com perfil pedestre antes de formar macro-paradas.
 
+O painel de revisão está na página inicial da API: **http://127.0.0.1:8000/**. Nele é possível importar a planilha, buscar endereços, selecionar pontos no mapa, corrigir entradas, consultar o histórico e calcular matrizes. Matrizes de revisões anteriores aparecem como desatualizadas.
+
+Para experimentar com três endereços fictícios, em um banco separado:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/review_demo.py
+$env:DATABASE_URL = 'sqlite:///outputs/review-demo.db'
+.\.venv\Scripts\jet-rapido-api.exe
+```
+
+O mapa de ruas é carregado ao clicar em **Mostrar ruas**. A biblioteca Leaflet usa CDN com versão fixa e integridade verificada; a revisão por coordenadas continua disponível se o mapa não carregar. A demonstração preserva os ajustes já salvos quando executada novamente.
+
 ## Executar no Windows
 
 Na pasta do projeto, com Python 3.12 ou superior:
@@ -61,5 +73,6 @@ O resumo do terminal contém apenas contagens. O JSON contém endereços, coorde
 - [API e persistência](docs/ETAPA_2_API.md)
 - [Revisão geográfica e mapas](docs/ETAPA_3_GEOGRAFIA_MAPAS.md)
 - [Arquitetura e modelo de dados planejados](docs/ARQUITETURA.md)
+- [Retomada das etapas 4 e 5 em novo chat](docs/CONTINUACAO_ETAPAS_4_5.md)
 
 Repositório público: https://github.com/alexsandrors0312/jet_rapido. Nunca enviar planilhas, JSON de análise ou bancos locais ao Git.

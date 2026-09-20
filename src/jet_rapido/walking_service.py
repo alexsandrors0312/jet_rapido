@@ -24,21 +24,34 @@ class InvalidMatrixResult(RuntimeError):
     pass
 
 
-def _input_hash(points, provider: WalkingMatrixProvider) -> str:
-    payload = {
+def matrix_snapshot(points, provider: WalkingMatrixProvider) -> dict:
+    return {
         "provider": provider.name,
         "profile": provider.profile,
+        "quality": provider.quality,
+        "provider_key": getattr(provider, "cache_key", f"{provider.name}:{provider.profile}"),
         "points": [
             {
                 "id": point.id,
                 "latitude": point.effective_latitude,
                 "longitude": point.effective_longitude,
+                "revision": point.revision,
+                "review_status": point.review_status,
             }
-            for point in points
+            for point in sorted(points, key=lambda point: point.id)
         ],
     }
-    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
+def _input_hash(points, provider: WalkingMatrixProvider) -> str:
+    encoded = json.dumps(matrix_snapshot(points, provider), sort_keys=True, separators=(",", ":")).encode("utf-8")
     return sha256(encoded).hexdigest()
+
+
+def matrix_is_stale(session, matrix, provider) -> bool:
+    return not matrix.input_snapshot or matrix.input_hash != _input_hash(
+        list_delivery_points(session, matrix.route_id), provider
+    )
 
 
 def create_walking_matrix(
@@ -68,6 +81,7 @@ def create_walking_matrix(
         )
 
     input_hash = _input_hash(points, provider)
+    snapshot = matrix_snapshot(points, provider)
     existing = find_walking_matrix(
         session,
         route_id=route_id,
@@ -87,7 +101,9 @@ def create_walking_matrix(
         for point in points
     ]
     computation = provider.compute(request_points)
-    if computation.provider != provider.name or computation.profile != provider.profile:
+    if (computation.provider, computation.profile, computation.quality) != (
+        provider.name, provider.profile, provider.quality
+    ):
         raise InvalidMatrixResult("O provedor retornou uma identidade diferente da configuração.")
     expected_ids = {point.id for point in points}
     pairs = {(cell.origin_id, cell.destination_id) for cell in computation.cells}
@@ -105,10 +121,18 @@ def create_walking_matrix(
             raise InvalidMatrixResult("O provedor retornou custo geográfico inválido.")
         if not cell.reachable and not cell.error_code:
             raise InvalidMatrixResult("Par inacessível sem código de erro.")
+        if not cell.reachable and (cell.distance_m is not None or cell.duration_s is not None):
+            raise InvalidMatrixResult("Par inacessível não pode ter custos parciais.")
+
+    # Encerra a leitura anterior para enxergar revisões feitas durante a consulta de rede.
+    session.rollback()
+    if _input_hash(list_delivery_points(session, route_id), provider) != input_hash:
+        raise GeographicReviewRequired("Os pontos mudaram durante o cálculo. Gere novamente a matriz.")
 
     return save_walking_matrix(
         session,
         route_id=route_id,
         input_hash=input_hash,
         computation=computation,
+        input_snapshot=snapshot,
     )

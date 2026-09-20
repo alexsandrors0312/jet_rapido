@@ -11,7 +11,7 @@ from sqlalchemy import inspect
 
 from jet_rapido.api import create_app
 from jet_rapido.config import Settings
-from jet_rapido.maps import MatrixCell, MatrixComputation
+from jet_rapido.maps import MatrixCell, MatrixComputation, StraightLineWalkingProvider
 from jet_rapido.models import Base
 
 from test_importer import fixture, row
@@ -82,6 +82,73 @@ class ApiTests(unittest.TestCase):
         response = self.client.get("/health")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"status": "ok"})
+
+    def test_console_is_served_and_provider_does_not_expose_private_url(self):
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Revisar entrada", response.text)
+        self.assertEqual(self.client.get("/static/review.js").status_code, 200)
+        config = self.client.get("/api/v1/maps/config").json()
+        self.assertEqual(config["provider"], "fake_network")
+        self.assertNotIn("base_url", config)
+
+    def test_review_history_conflict_and_stale_matrix(self):
+        imported = self.upload().json()
+        route_id = imported["routes"][0]["id"]
+        self.client.post(f"/api/v1/routes/{route_id}/delivery-points/confirm-imported")
+        point = self.client.get(f"/api/v1/routes/{route_id}/delivery-points").json()[0]
+        created = self.client.post(f"/api/v1/routes/{route_id}/walking-matrices", json={}).json()
+        snapshot = created["input_snapshot"]
+        self.assertFalse(created["stale"])
+        command = {"review_status": "corrected", "latitude": -23.501,
+                   "longitude": -46.601, "expected_revision": point["revision"]}
+        updated = self.client.patch(f"/api/v1/delivery-points/{point['id']}/review", json=command)
+        self.assertEqual(updated.status_code, 200, updated.text)
+        self.assertEqual(updated.json()["revision"], point["revision"] + 1)
+        conflict = self.client.patch(f"/api/v1/delivery-points/{point['id']}/review", json=command)
+        self.assertEqual(conflict.status_code, 409)
+        history = self.client.get(f"/api/v1/delivery-points/{point['id']}/reviews").json()
+        self.assertEqual(len(history), 2)  # confirmação em lote + correção
+        self.assertEqual(history[0]["before"]["effective_latitude"], point["effective_latitude"])
+        self.assertEqual(history[0]["after"]["effective_latitude"], -23.501)
+        historical = self.client.get(f"/api/v1/walking-matrices/{created['id']}").json()
+        self.assertTrue(historical["stale"])
+        self.assertEqual(historical["input_snapshot"], snapshot)
+        self.assertTrue(self.client.get(f"/api/v1/routes/{route_id}/walking-matrices").json()[0]["stale"])
+        new = self.client.post(f"/api/v1/routes/{route_id}/walking-matrices", json={})
+        self.assertEqual(new.status_code, 201)
+        self.assertFalse(new.json()["stale"])
+
+    def test_changing_provider_cost_configuration_invalidates_cache(self):
+        route_id = self.upload().json()["routes"][0]["id"]
+        self.client.post(f"/api/v1/routes/{route_id}/delivery-points/confirm-imported")
+        self.app.state.walking_provider = StraightLineWalkingProvider(walking_speed_mps=1)
+        first = self.client.post(f"/api/v1/routes/{route_id}/walking-matrices", json={}).json()
+        self.app.state.walking_provider = StraightLineWalkingProvider(walking_speed_mps=2)
+        second = self.client.post(f"/api/v1/routes/{route_id}/walking-matrices", json={})
+        self.assertEqual(second.status_code, 201)
+        self.assertNotEqual(first["id"], second.json()["id"])
+        self.assertTrue(self.client.get(f"/api/v1/walking-matrices/{first['id']}").json()["stale"])
+
+    def test_review_during_provider_call_does_not_save_outdated_result(self):
+        route_id = self.upload().json()["routes"][0]["id"]
+        self.client.post(f"/api/v1/routes/{route_id}/delivery-points/confirm-imported")
+        point = self.client.get(f"/api/v1/routes/{route_id}/delivery-points").json()[0]
+        client = self.client
+
+        class EditingProvider(FakeWalkingProvider):
+            def compute(self, points):
+                response = client.patch(f"/api/v1/delivery-points/{point['id']}/review", json={
+                    "review_status": "corrected", "latitude": -23.6, "longitude": -46.7,
+                })
+                if response.status_code != 200:
+                    raise AssertionError(response.text)
+                return super().compute(points)
+
+        self.app.state.walking_provider = EditingProvider()
+        response = self.client.post(f"/api/v1/routes/{route_id}/walking-matrices", json={})
+        self.assertEqual(response.status_code, 409, response.text)
+        self.assertEqual(self.client.get(f"/api/v1/routes/{route_id}/walking-matrices").json(), [])
 
     def test_import_query_and_review_route(self):
         response = self.upload()

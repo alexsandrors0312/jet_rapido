@@ -72,6 +72,7 @@ class DeliveryPointResponse(BaseModel):
     effective_latitude: float
     effective_longitude: float
     review_status: str
+    revision: int
     review_source: str | None
     review_note: str | None
     reviewed_at: datetime | None
@@ -81,6 +82,8 @@ class DeliveryPointResponse(BaseModel):
 
 
 class DeliveryPointReviewRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
+    expected_revision: int | None = Field(default=None, ge=1)
     review_status: Literal["confirmed", "corrected", "rejected"]
     review_source: Literal["operator", "driver", "map"] = "operator"
     review_note: str | None = Field(default=None, max_length=2000)
@@ -115,6 +118,8 @@ class WalkingMatrixResponse(BaseModel):
     profile: str
     quality: str
     input_hash: str
+    input_snapshot: dict | None
+    stale: bool = False
     point_count: int
     reachable_pairs: int
     unreachable_pairs: int
@@ -135,3 +140,11 @@ class WalkingMatrixEntryResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str
+
+
+class DeliveryPointReviewResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    revision: int
+    before: dict
+    after: dict
+    created_at: datetime

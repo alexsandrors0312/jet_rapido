@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 import os
+from math import isfinite
 
 
 @dataclass(frozen=True)
@@ -16,6 +17,8 @@ class Settings:
     osrm_profile: str = "foot"
     osrm_timeout_seconds: float = 20.0
     osrm_block_size: int = 50
+    osrm_dataset_revision: str = "unverified"
+    osrm_snap_radius_m: float = 50.0
     straight_line_detour_factor: float = 1.25
     walking_speed_mps: float = 1.3
 
@@ -28,8 +31,8 @@ class Settings:
         ):
             if getattr(self, name) <= 0:
                 raise ValueError(f"{name} deve ser positivo.")
-        for name in ("osrm_timeout_seconds", "straight_line_detour_factor", "walking_speed_mps"):
-            if getattr(self, name) <= 0:
+        for name in ("osrm_timeout_seconds", "straight_line_detour_factor", "walking_speed_mps", "osrm_snap_radius_m"):
+            if not isfinite(getattr(self, name)) or getattr(self, name) <= 0:
                 raise ValueError(f"{name} deve ser positivo.")
 
     @classmethod
@@ -47,6 +50,8 @@ class Settings:
             osrm_profile=os.getenv("OSRM_PROFILE", cls.osrm_profile),
             osrm_timeout_seconds=float(os.getenv("OSRM_TIMEOUT_SECONDS", cls.osrm_timeout_seconds)),
             osrm_block_size=int(os.getenv("OSRM_BLOCK_SIZE", cls.osrm_block_size)),
+            osrm_dataset_revision=os.getenv("OSRM_DATASET_REVISION", cls.osrm_dataset_revision),
+            osrm_snap_radius_m=float(os.getenv("OSRM_SNAP_RADIUS_M", cls.osrm_snap_radius_m)),
             straight_line_detour_factor=float(
                 os.getenv("STRAIGHT_LINE_DETOUR_FACTOR", cls.straight_line_detour_factor)
             ),

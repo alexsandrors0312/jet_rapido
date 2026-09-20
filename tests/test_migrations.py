@@ -38,6 +38,16 @@ class MigrationTests(unittest.TestCase):
                 ), {"package": "package", "batch": "batch", "route": "route", "now": now})
             engine.dispose()
 
+            command.upgrade(config, "20260919_0002")
+            engine = create_engine(database_url)
+            with engine.begin() as connection:
+                connection.execute(text(
+                    "INSERT INTO walking_matrices (id, route_id, provider, profile, quality, input_hash, "
+                    "point_count, reachable_pairs, unreachable_pairs, dataset_version, created_at) "
+                    "VALUES ('old-matrix', 'route', 'straight_line', 'walking_estimate', "
+                    "'estimate_only', :hash, 1, 1, 0, NULL, :now)"
+                ), {"hash": "b" * 64, "now": now})
+            engine.dispose()
             command.upgrade(config, "head")
             engine = create_engine(database_url)
             with engine.connect() as connection:
@@ -45,14 +55,18 @@ class MigrationTests(unittest.TestCase):
                     "SELECT delivery_point_id FROM packages WHERE id = 'package'"
                 )).mappings().one()
                 point = connection.execute(text(
-                    "SELECT original_address, effective_latitude, review_status "
+                    "SELECT original_address, effective_latitude, review_status, revision "
                     "FROM delivery_points WHERE id = :id"
                 ), {"id": package["delivery_point_id"]}).mappings().one()
+                self.assertIsNone(connection.execute(text(
+                    "SELECT input_snapshot FROM walking_matrices WHERE id = 'old-matrix'"
+                )).scalar_one())
             engine.dispose()
 
         self.assertEqual(point["original_address"], "Rua Antiga, 10")
         self.assertEqual(point["effective_latitude"], -23.5)
         self.assertEqual(point["review_status"], "pending")
+        self.assertEqual(point["revision"], 1)
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "jet-rapido"
-version = "0.3.0"
+version = "0.3.1"
 description = "Importação e planejamento de entregas last-mile"
 requires-python = ">=3.12"
 dependencies = [
@@ -27,6 +27,9 @@ jet-rapido-api = "jet_rapido.api:run"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+jet_rapido = ["static/*.html", "static/*.css", "static/*.js"]
 
 [tool.unittest]
 start-directory = "tests"

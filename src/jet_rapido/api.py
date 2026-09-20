@@ -5,7 +5,9 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 from fastapi import Depends, FastAPI, File, HTTPException, Query, Request, Response, UploadFile, status
-from sqlalchemy import text
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+from sqlalchemy import text, select
 from sqlalchemy.orm import Session
 import uvicorn
 
@@ -14,6 +16,7 @@ from .config import Settings
 from .database import create_database_engine, create_session_factory
 from .importer import ImportValidationError, import_workbook
 from .maps import MapProviderError, WalkingMatrixProvider, build_walking_provider
+from .models import DeliveryPointReview, WalkingMatrix
 from .repository import (
     confirm_imported_delivery_points,
     get_delivery_point,
@@ -26,6 +29,7 @@ from .repository import (
     persist_import,
     review_delivery_point,
     set_route_reviewed,
+    ReviewConflict,
 )
 from .schemas import (
     DeliveryPointConfirmationResponse,
@@ -39,9 +43,11 @@ from .schemas import (
     WalkingMatrixCreateRequest,
     WalkingMatrixEntryResponse,
     WalkingMatrixResponse,
+    DeliveryPointReviewResponse,
 )
 from .walking_service import (
     GeographicReviewRequired, InvalidMatrixResult, MatrixLimitExceeded, create_walking_matrix,
+    matrix_is_stale,
 )
 
 
@@ -98,12 +104,30 @@ def create_app(
 
     app = FastAPI(
         title="Jet Rápido API",
-        version="0.3.0",
+        version="0.3.1",
         description="Importação auditável, revisão geográfica e matrizes pedestres.",
     )
     app.state.settings = settings
     app.state.engine = engine
     app.state.walking_provider = walking_provider or build_walking_provider(settings)
+    static_root = Path(__file__).parent / "static"
+    app.mount("/static", StaticFiles(directory=static_root), name="static")
+
+    @app.get("/", include_in_schema=False)
+    def review_console():
+        return FileResponse(static_root / "index.html")
+
+    @app.get("/api/v1/maps/config", tags=["mapas"])
+    def maps_config():
+        provider = app.state.walking_provider
+        return {"provider": provider.name, "quality": provider.quality,
+                "profile": provider.profile, "max_matrix_points": settings.max_matrix_points}
+
+    def matrix_response(session, matrix, idempotent=False):
+        return WalkingMatrixResponse.model_validate(matrix).model_copy(update={
+            "idempotent": idempotent,
+            "stale": matrix_is_stale(session, matrix, app.state.walking_provider),
+        })
 
     def get_session() -> Iterator[Session]:
         with session_factory() as session:
@@ -219,15 +243,10 @@ def create_app(
         point = get_delivery_point(session, point_id)
         if not point:
             raise HTTPException(status_code=404, detail="Ponto de entrega não encontrado.")
-        updated = review_delivery_point(
-            session,
-            point,
-            review_status=command.review_status,
-            review_source=command.review_source,
-            review_note=command.review_note,
-            latitude=command.latitude,
-            longitude=command.longitude,
-        )
+        try:
+            updated = review_delivery_point(session, point, **command.model_dump())
+        except ReviewConflict as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
         return DeliveryPointResponse.model_validate(updated)
 
     @app.post(
@@ -241,7 +260,10 @@ def create_app(
     ) -> DeliveryPointConfirmationResponse:
         if not get_route(session, route_id):
             raise HTTPException(status_code=404, detail="Rota não encontrada.")
-        confirmed, points = confirm_imported_delivery_points(session, route_id)
+        try:
+            confirmed, points = confirm_imported_delivery_points(session, route_id)
+        except ReviewConflict as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
         return DeliveryPointConfirmationResponse(
             confirmed_count=confirmed,
             points=[DeliveryPointResponse.model_validate(point) for point in points],
@@ -277,8 +299,7 @@ def create_app(
             raise HTTPException(status_code=502, detail="Falha ao calcular a matriz pedestre.") from error
         if idempotent:
             response.status_code = status.HTTP_200_OK
-        result = WalkingMatrixResponse.model_validate(matrix)
-        return result.model_copy(update={"idempotent": idempotent})
+        return matrix_response(session, matrix, idempotent)
 
     @app.get(
         "/api/v1/walking-matrices/{matrix_id}",
@@ -292,7 +313,26 @@ def create_app(
         matrix = get_walking_matrix(session, matrix_id)
         if not matrix:
             raise HTTPException(status_code=404, detail="Matriz pedestre não encontrada.")
-        return WalkingMatrixResponse.model_validate(matrix)
+        return matrix_response(session, matrix)
+
+    @app.get("/api/v1/routes/{route_id}/walking-matrices", response_model=list[WalkingMatrixResponse], tags=["mapas"])
+    def list_matrices(route_id: str, limit: int = Query(20, ge=1, le=100),
+                      offset: int = Query(0, ge=0), session: Session = Depends(get_session)):
+        if not get_route(session, route_id):
+            raise HTTPException(status_code=404, detail="Rota não encontrada.")
+        matrices = session.scalars(select(WalkingMatrix).where(WalkingMatrix.route_id == route_id)
+                                  .order_by(WalkingMatrix.created_at.desc(), WalkingMatrix.id)
+                                  .limit(limit).offset(offset))
+        return [matrix_response(session, matrix) for matrix in matrices]
+
+    @app.get("/api/v1/delivery-points/{point_id}/reviews", response_model=list[DeliveryPointReviewResponse], tags=["geografia"])
+    def review_history(point_id: str, limit: int = Query(50, ge=1, le=200),
+                       offset: int = Query(0, ge=0), session: Session = Depends(get_session)):
+        if not get_delivery_point(session, point_id):
+            raise HTTPException(status_code=404, detail="Ponto de entrega não encontrado.")
+        return list(session.scalars(select(DeliveryPointReview)
+            .where(DeliveryPointReview.delivery_point_id == point_id)
+            .order_by(DeliveryPointReview.revision.desc()).limit(limit).offset(offset)))
 
     @app.get(
         "/api/v1/walking-matrices/{matrix_id}/entries",

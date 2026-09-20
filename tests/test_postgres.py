@@ -53,6 +53,12 @@ class PostgresIntegrationTests(unittest.TestCase):
         self.assertEqual(matrix.status_code, 201, matrix.text)
         self.assertEqual(matrix.json()["quality"], "estimate_only")
         self.assertEqual(matrix.json()["reachable_pairs"], 1)
+        self.assertFalse(matrix.json()["stale"])
+        self.assertEqual(len(matrix.json()["input_snapshot"]["points"]), 1)
+        point_id = points.json()[0]["id"]
+        history = self.client.get(f"/api/v1/delivery-points/{point_id}/reviews")
+        self.assertEqual(history.status_code, 200, history.text)
+        self.assertEqual(history.json()[0]["after"]["review_status"], "confirmed")
 
 
 if __name__ == "__main__":

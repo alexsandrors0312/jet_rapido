@@ -3,13 +3,13 @@
 from collections import defaultdict
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from .geography import delivery_point_key, haversine_meters
 from .models import (
-    DeliveryPoint, ImportBatch, Package, Route, WalkingMatrix, WalkingMatrixEntry, new_uuid,
+    DeliveryPoint, DeliveryPointReview, ImportBatch, Package, Route, WalkingMatrix, WalkingMatrixEntry, new_uuid,
 )
 
 
@@ -185,30 +185,60 @@ def review_delivery_point(
     review_note: str | None,
     latitude: float | None,
     longitude: float | None,
+    expected_revision: int | None = None,
+    commit: bool = True,
 ) -> DeliveryPoint:
-    if review_status == "corrected":
-        point.effective_latitude = latitude  # type: ignore[assignment]
-        point.effective_longitude = longitude  # type: ignore[assignment]
-    else:
-        point.effective_latitude = point.imported_latitude
-        point.effective_longitude = point.imported_longitude
-    point.review_status = review_status
-    point.review_source = review_source
-    point.review_note = review_note
-    point.reviewed_at = datetime.now(timezone.utc)
-    session.commit()
+    revision = point.revision
+    if expected_revision is not None and expected_revision != revision:
+        raise ReviewConflict("O ponto foi alterado. Recarregue antes de salvar.")
+    if review_status == "corrected" and (latitude is None or longitude is None):
+        raise ValueError("Coordenadas obrigatórias para correção.")
+    before = review_snapshot(point)
+    values = dict(
+        effective_latitude=latitude if review_status == "corrected" else point.imported_latitude,
+        effective_longitude=longitude if review_status == "corrected" else point.imported_longitude,
+        review_status=review_status,
+        review_source=review_source,
+        review_note=review_note,
+        reviewed_at=datetime.now(timezone.utc),
+        revision=revision + 1,
+    )
+    changed = session.execute(
+        update(DeliveryPoint).where(DeliveryPoint.id == point.id, DeliveryPoint.revision == revision)
+        .values(**values).execution_options(synchronize_session=False)
+    )
+    if changed.rowcount != 1:
+        session.rollback()
+        raise ReviewConflict("O ponto foi alterado. Recarregue antes de salvar.")
+    session.refresh(point)
+    session.add(DeliveryPointReview(
+        delivery_point_id=point.id, revision=point.revision,
+        before=before, after=review_snapshot(point),
+    ))
+    if commit:
+        session.commit()
     return get_delivery_point(session, point.id) or point
+
+
+class ReviewConflict(ValueError):
+    pass
+
+
+def review_snapshot(point: DeliveryPoint) -> dict:
+    return {key: getattr(point, key) for key in (
+        "effective_latitude", "effective_longitude", "review_status", "review_source", "review_note",
+    )}
 
 
 def confirm_imported_delivery_points(session: Session, route_id: str) -> tuple[int, list[DeliveryPoint]]:
     points = list_delivery_points(session, route_id)
-    now = datetime.now(timezone.utc)
     confirmed = 0
     for point in points:
         if point.review_status == "pending":
-            point.review_status = "confirmed"
-            point.review_source = "operator"
-            point.reviewed_at = now
+            review_delivery_point(
+                session, point, review_status="confirmed", review_source="operator",
+                review_note=None, latitude=None, longitude=None, commit=False,
+            )
             confirmed += 1
     session.commit()
     return confirmed, list_delivery_points(session, route_id)
@@ -240,6 +270,7 @@ def save_walking_matrix(
     route_id: str,
     input_hash: str,
     computation,
+    input_snapshot: dict,
 ) -> tuple[WalkingMatrix, bool]:
     existing = find_walking_matrix(
         session,
@@ -258,6 +289,7 @@ def save_walking_matrix(
         profile=computation.profile,
         quality=computation.quality,
         input_hash=input_hash,
+        input_snapshot=input_snapshot,
         point_count=len({cell.origin_id for cell in computation.cells}),
         reachable_pairs=reachable_pairs,
         unreachable_pairs=len(computation.cells) - reachable_pairs,

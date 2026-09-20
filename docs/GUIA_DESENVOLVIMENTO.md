@@ -32,8 +32,11 @@ A prova técnica de GPS/áudio em Android deve ocorrer antes de investir na inte
 4. Custos, cobertura e limites dos provedores estão documentados em `ETAPA_3_GEOGRAFIA_MAPAS.md`.
 5. Falta avaliar a Avenida dos Ourives em um OSRM com perfil pedestre da região.
 6. Falta a prova técnica Android de GPS e áudio em segundo plano.
+7. Painel web de revisão entregue na raiz da API: importação, busca, mapa, histórico e consulta das matrizes.
+8. Correções têm revisão numérica e histórico; matrizes guardam as entradas usadas e indicam desatualização.
+9. O CI prepara um OSRM real com perfil `foot.lua` e uma rede sintética, além do PostgreSQL.
 
-Macro-paradas entram depois desses dois testes operacionais. A API rejeita pontos geográficos marcados como inválidos, e matrizes `estimate_only` não servem como evidência de viabilidade pedestre.
+As etapas 4 e 5 serão desenvolvidas em um novo chat, conforme combinado. Podem ser verificadas inicialmente com redes sintéticas; o uso em operação exige validar cobertura pedestre e entradas da região. A prova Android antecede a interface mobile completa. A API rejeita pontos geográficos marcados como inválidos, e matrizes `estimate_only` não servem como evidência de viabilidade pedestre.
 
 ## Rotina de qualidade
 
@@ -76,3 +79,16 @@ Branch principal: main. O remoto público é `alexsandrors0312/jet_rapido`. Dado
 - Provedores intercambiáveis para matriz pedestre: OSRM em rede e estimativa local identificada.
 - Matrizes completas, pagináveis, idempotentes e com pares inacessíveis explícitos.
 - Cobertura pedestre local e prova Android permanecem como validações operacionais da etapa.
+
+## Continuação da etapa 3 — painel e auditoria
+
+- Interface responsiva em FastAPI + HTML/CSS/JavaScript + Leaflet, sem processo de build separado.
+- Migração 0003 acrescenta histórico, controle de revisões e entradas imutáveis das matrizes.
+- `expected_revision` impede sobrescrita silenciosa quando informado; o painel sempre o envia.
+- Cache considera configuração do provedor, versão local do extrato e revisão dos pontos.
+- OSRM limita associação à rede por raio e recusa respostas inválidas ou extratos diferentes entre blocos.
+- Scripts de demonstração, preparação OSRM e relatório local de cobertura disponíveis em `scripts/`.
+- Ambiente local: Docker, WSL funcional, Flutter e ADB indisponíveis nesta execução. Nenhuma instalação global foi feita.
+- Conferência em navegador: confirmar duas entradas, corrigir outra, calcular e consultar matriz; layouts desktop e celular sem rolagem horizontal da página.
+- Testes automatizados locais: 41 descobertos, 39 passaram e 2 dependem de PostgreSQL/OSRM. O CI é a validação desses dois serviços reais.
+- Próximo chat: ler `CONTINUACAO_ETAPAS_4_5.md` e registrar as pendências de campo sem tratá-las como concluídas.

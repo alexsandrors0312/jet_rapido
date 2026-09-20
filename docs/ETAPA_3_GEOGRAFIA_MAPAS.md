@@ -117,3 +117,55 @@ A identidade da matriz inclui provedor, perfil, IDs e coordenadas efetivas. Repe
 O protocolo OSRM, os lotes, respostas incompletas e pares sem rota possuem testes automatizados. A planilha real também é validada localmente no fluxo de revisão e no modo estimado. A aceitação de cobertura pedestre da Avenida dos Ourives exige um endpoint OSRM com extrato e perfil pedestre da região; sem esse serviço, a etapa não afirma que a rede local está correta.
 
 O próximo incremento técnico da etapa 3 é executar essa verificação de cobertura em um serviço OSRM próprio e realizar a prova Android de GPS e áudio em segundo plano. A etapa 4 só deve usar a matriz de qualidade `network`.
+
+## Painel de revisão e auditoria
+
+Abra a raiz da API (`http://127.0.0.1:8000/`). Selecione ou importe uma rota, busque um endereço e confirme, corrija ou rejeite a entrada. Para corrigir, clique no mapa ou informe as coordenadas, revise a proposta e use **Salvar revisão**. Confirmação significa aceitar a coordenada **importada**, inclusive quando havia uma correção anterior; o texto da opção informa esse comportamento.
+
+O mapa usa [Leaflet 1.9.4](https://leafletjs.com/reference.html). **Mostrar ruas** consulta somente os tiles da área exibida, com atribuição visível ao OpenStreetMap e cache normal do navegador. Não há download em massa nem modo offline de tiles. A disponibilidade desse serviço público é best effort, segundo a [política de tiles](https://operations.osmfoundation.org/policies/tiles/). Endereços e pacotes não são enviados a um geocodificador.
+
+A revisão envia `expected_revision`. Uma versão divergente retorna HTTP 409; o operador deve recarregar o ponto. Cada gravação cria um evento em `delivery_point_reviews`, com estado anterior/posterior. A origem declarada é `operator`, `driver` ou `map`; ainda não identifica usuário autenticado.
+
+Novos endpoints de consulta:
+
+- `GET /api/v1/maps/config`: modo e limite configurados, sem expor endereço privado do serviço.
+- `GET /api/v1/delivery-points/{id}/reviews?limit=50&offset=0`: histórico paginado.
+- `GET /api/v1/routes/{id}/walking-matrices?limit=20&offset=0`: histórico de matrizes.
+
+`input_snapshot` guarda as coordenadas, IDs, estados e revisões usados no cálculo. `stale=true` indica mudança nos pontos ou na configuração do provedor. Uma matriz legada sem snapshot também é desatualizada. O consumidor da etapa 4 deverá exigir `stale=false`, qualidade `network` e revisão dos pontos; a consulta de uma matriz histórica permanece permitida para auditoria.
+
+## Preparar OSRM e verificar a região
+
+Com Docker disponível e um extrato local licenciado de OpenStreetMap em `.osm.pbf`:
+
+```powershell
+.\scripts\prepare_osrm.ps1 -InputFile 'C:\mapas\regiao.osm.pbf'
+docker compose -f compose.osrm.yaml up -d
+$env:MAP_PROVIDER = 'osrm'
+$env:OSRM_BASE_URL = 'http://localhost:5000'
+$env:OSRM_PROFILE = 'foot'
+$env:OSRM_DATASET_REVISION = 'cole-o-hash-exibido-pelo-script'
+$env:OSRM_SNAP_RADIUS_M = '50'
+.\.venv\Scripts\alembic.exe upgrade head
+.\.venv\Scripts\jet-rapido-api.exe
+```
+
+O script prepara `foot.lua` com CH, recusa sobrescrever `data/osrm` existente e não baixa dados da região. `OSRM_PROFILE=foot` na URL sozinho não muda um grafo de carro para pedestre: o perfil deve ser aplicado no `osrm-extract`. A [documentação de perfis OSRM](https://project-osrm.org/docs/v26.4.0/profiles) explica essa distinção.
+
+O limite padrão de associação à rede é 50 m, configurável. Se um ponto não encontra segmento nesse raio, a API retorna erro de provedor; isso exige revisar a entrada/cobertura, não ampliar silenciosamente o raio. A integração recusa custos parciais, respostas malformadas e versões de dados diferentes entre blocos. O timeout é por requisição; o endpoint ainda é síncrono e pode durar vários blocos.
+
+Depois de conferir as entradas no painel, produza o relatório privado:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/validate_walking.py ID_DA_ROTA --output outputs/cobertura-regiao.json
+```
+
+Esse script exige provedor `network`, não confirma coordenadas, preserva pares dirigidos de ruas divididas e recusa sobrescrita da saída. O relatório mantém `field_acceptance` pendente: custo calculado não prova portão aberto, travessia segura ou estacionamento permitido.
+
+## Verificações desta continuação
+
+- Testes de correções concorrentes, histórico, snapshots, desatualização por revisão/configuração e revisão durante consulta de rede.
+- CI prepara o binário OSRM com uma rede **sintética**, verifica custo em footway e `NO_ROUTE` entre componentes separados. Não usa dados de entrega nem depende de servidor público.
+- SQLite local, migração retrocompatível e testes de API. PostgreSQL é verificado no CI.
+- Interface exercitada em navegador com dados fictícios; adaptação para desktop e celular.
+- Cobertura da região real e prova Android continuam pendentes por ausência de serviço regional e aparelho/SDK.

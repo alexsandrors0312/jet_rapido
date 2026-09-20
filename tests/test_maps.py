@@ -84,6 +84,28 @@ class MapProviderTests(unittest.TestCase):
             with self.assertRaisesRegex(MapProviderError, "dimensões"):
                 provider.compute(self.points)
 
+    def test_malformed_osrm_responses_are_provider_errors(self):
+        provider = OSRMWalkingProvider(base_url="http://osrm.test", profile="foot", timeout_seconds=3, block_size=10)
+        payloads = [[], {"code": "Ok", "distances": [False, []], "durations": [[], []]},
+                    {"code": "Ok", "distances": [[0, None], [0, 0]], "durations": [[0, 1], [0, 0]]},
+                    {"code": "Ok", "distances": [[0, True], [0, 0]], "durations": [[0, 1], [0, 0]]}]
+        for payload in payloads:
+            with self.subTest(payload=payload), patch("jet_rapido.maps.httpx.Client", return_value=FakeClient(payload)):
+                with self.assertRaises(MapProviderError):
+                    provider.compute(self.points)
+
+    def test_blocks_keep_directed_pairs_and_reject_mixed_datasets(self):
+        provider = OSRMWalkingProvider(base_url="http://osrm.test", profile="foot", timeout_seconds=3, block_size=1)
+        fake = FakeClient(None)
+        with patch("jet_rapido.maps.httpx.Client", return_value=fake), patch.object(fake, "get") as get:
+            get.side_effect = [FakeResponse({"code": "Ok", "distances": [[v]], "durations": [[v]], "data_version": "v1"}) for v in (0, 80, 120, 0)]
+            matrix = provider.compute(self.points)
+            self.assertEqual([cell.distance_m for cell in matrix.cells], [0, 80, 120, 0])
+            self.assertIn("radiuses", get.call_args.kwargs["params"])
+            get.side_effect = [FakeResponse({"code": "Ok", "distances": [[0]], "durations": [[0]], "data_version": v}) for v in ("v1", "v2", "v1", "v1")]
+            with self.assertRaisesRegex(MapProviderError, "extrato"):
+                provider.compute(self.points)
+
 
 if __name__ == "__main__":
     unittest.main()
