@@ -13,6 +13,8 @@ Continuar o Jet Rápido na pasta `C:/Users/Alexs/Desktop/jet_rapido`. Desenvolve
 
 ## O que existe
 
+Fechamento técnico em 20/09/2026: commits `07d2285` e `9d92ce8`, [CI aprovado com 41 testes sem skips](https://github.com/alexsandrors0312/jet_rapido/actions/runs/35477756792). Software da etapa 3 entregue; as pendências operacionais abaixo continuam abertas.
+
 - Importação XLSX auditável e idempotente: importações, rotas, pacotes e pontos de entrega.
 - Planilha recebida contém **32 pacotes, 26 paradas numeradas e 3 registros sem ordem**. Os 124 pacotes/66 paradas eram o exemplo inicial, não o tamanho desta amostra.
 - Revisão geográfica: coordenadas originais preservadas, coordenadas efetivas, versão e histórico. O painel em `/` permite trabalhar sem escrever chamadas HTTP.

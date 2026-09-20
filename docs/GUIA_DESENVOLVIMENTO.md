@@ -15,7 +15,7 @@ Manter uma etapa principal em andamento. Evitar trocar de stack sem necessidade 
 | 0 | Análise, Git e documentação | Estrutura real entendida; dados protegidos do histórico | Concluída |
 | 1 | Importador local | 32 pacotes preservados; validações e testes de regressão | Implementada |
 | 2 | API e persistência | Importar, consultar e revisar rota; mesma importação não duplica pacotes; migrações testadas | Implementada |
-| 3 | Revisão geográfica e mapas | Conferir entradas e coordenadas; matriz caminhável com inacessíveis explícitos | Em validação operacional |
+| 3 | Revisão geográfica e mapas | Conferir entradas e coordenadas; matriz caminhável com inacessíveis explícitos | Software entregue; homologação de campo pendente |
 | 4 | Macro-paradas | Capacidade e caminhada limitadas; nenhum pacote perdido; comparação com original | Pendente |
 | 5 | Ordem veicular e circuitos | Rota pedestre retorna ao carro; estacionamentos acessíveis; custos mensuráveis | Pendente |
 | 6 | Mobile operacional | Confirmar estacionamento, preparar bag e registrar entregas | Pendente |
@@ -92,3 +92,12 @@ Branch principal: main. O remoto público é `alexsandrors0312/jet_rapido`. Dado
 - Conferência em navegador: confirmar duas entradas, corrigir outra, calcular e consultar matriz; layouts desktop e celular sem rolagem horizontal da página.
 - Testes automatizados locais: 41 descobertos, 39 passaram e 2 dependem de PostgreSQL/OSRM. O CI é a validação desses dois serviços reais.
 - Próximo chat: ler `CONTINUACAO_ETAPAS_4_5.md` e registrar as pendências de campo sem tratá-las como concluídas.
+
+## Fechamento técnico — 20/09/2026
+
+- Implementação publicada nos commits `07d2285` e `9d92ce8`.
+- [CI 35477756792](https://github.com/alexsandrors0312/jet_rapido/actions/runs/35477756792): **41 testes passaram, sem testes ignorados**, incluindo PostgreSQL e OSRM real sobre rede sintética.
+- A falha inicial de download da imagem foi corrigida para `ghcr.io/project-osrm/osrm-backend:v5.27.1` no CI e nos scripts locais.
+- Painel exercitado no navegador: confirmação, correção, consulta da matriz e sinalização de desatualização após nova revisão.
+- O software desta etapa está entregue. Cobertura da região real e GPS/voz em Android continuam pendentes de homologação, pois não havia serviço regional nem aparelho/SDK disponíveis.
+- Etapas 4 e 5 podem começar em novo chat com redes sintéticas e as condições de uso operacional descritas no documento de continuação.
