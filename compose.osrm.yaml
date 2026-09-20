@@ -1,7 +1,7 @@
 # Preparar data/osrm/map.osrm com scripts/prepare_osrm.ps1 antes de iniciar.
 services:
   osrm:
-    image: osrm/osrm-backend:v5.27.1
+    image: ghcr.io/project-osrm/osrm-backend:v5.27.1
     command: ["osrm-routed", "--algorithm", "ch", "--max-table-size", "100", "/data/map.osrm"]
     ports:
       - "127.0.0.1:5000:5000"

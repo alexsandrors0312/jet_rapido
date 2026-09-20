@@ -36,9 +36,9 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/osrm"
           cp tests/fixtures/pedestrian.osm "$RUNNER_TEMP/osrm/map.osm"
-          docker run --rm -v "$RUNNER_TEMP/osrm:/data" osrm/osrm-backend:v5.27.1 osrm-extract -p /opt/foot.lua /data/map.osm
-          docker run --rm -v "$RUNNER_TEMP/osrm:/data" osrm/osrm-backend:v5.27.1 osrm-contract /data/map.osrm
-          docker run -d --name jet-osrm-ci -p 127.0.0.1:5000:5000 -v "$RUNNER_TEMP/osrm:/data:ro" osrm/osrm-backend:v5.27.1 osrm-routed --algorithm ch /data/map.osrm
+          docker run --rm -v "$RUNNER_TEMP/osrm:/data" ghcr.io/project-osrm/osrm-backend:v5.27.1 osrm-extract -p /opt/foot.lua /data/map.osm
+          docker run --rm -v "$RUNNER_TEMP/osrm:/data" ghcr.io/project-osrm/osrm-backend:v5.27.1 osrm-contract /data/map.osrm
+          docker run -d --name jet-osrm-ci -p 127.0.0.1:5000:5000 -v "$RUNNER_TEMP/osrm:/data:ro" ghcr.io/project-osrm/osrm-backend:v5.27.1 osrm-routed --algorithm ch /data/map.osrm
           for attempt in $(seq 1 30); do
             if curl --fail --silent 'http://localhost:5000/nearest/v1/foot/0.0012,0.001' >/dev/null; then exit 0; fi
             sleep 1
