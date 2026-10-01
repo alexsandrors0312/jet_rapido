@@ -163,6 +163,9 @@ class MacroStopResponse(BaseModel):
     candidate_base_address: str
     parking_status: Literal["unverified"]
     delivery_point_ids: list[str]
+    delivery_point_count: int
+    street_count: int
+    stop_type: Literal["multi_address_walk_candidate", "single_address_stop"]
     package_count: int
     original_stops: list[int]
     max_pairwise_m: float
@@ -190,6 +193,10 @@ class MacroPlanResponse(BaseModel):
     packages_without_original_stop: int
     original_stops_split: int
     macro_stop_count: int
+    multi_address_stop_count: int
+    single_address_stop_count: int
+    cross_street_stop_count: int
+    packages_in_multi_address_stops: int
     distance_comparison_available: bool
     distance_comparison_note: str
     stops: list[MacroStopResponse]

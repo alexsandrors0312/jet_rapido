@@ -110,3 +110,4 @@ Branch principal: main. O remoto público é `alexsandrors0312/jet_rapido`. Dado
 - A comparação informa contagens e medidas da proposta; distância e retornos reais da rota original não podem ser medidos sem os estacionamentos/percurso anterior.
 - A amostra de 30/09/2026 foi lida localmente: 18 pacotes, 16 paradas numeradas e 1 pacote sem ordem. Nenhuma planilha real foi adicionada ao Git.
 - Detalhes e limites em `ETAPA_4_MACRO_PARADAS.md`. A homologação regional e a etapa 5 continuam pendentes.
+- Após a comparação com a amostra de 22/09/2026, a proposta passou a distinguir paradas individuais de agrupamentos candidatos a caminhada, inclusive entre ruas diferentes. Essa classificação é descritiva e depende da rede pedestre para ser gerada.

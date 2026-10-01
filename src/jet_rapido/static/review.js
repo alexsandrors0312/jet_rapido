@@ -146,7 +146,7 @@ async function loadMacroPlans() {
   $("macro-history").replaceChildren();
   if (!plans.length) { $("macro-history").append(make("p", "Nenhuma proposta criada para esta rota.")); $("macro-detail").replaceChildren(); return; }
   plans.forEach(plan => {
-    const button = make("button", `${new Date(plan.created_at).toLocaleString("pt-BR")} · ${plan.macro_stop_count} macro-paradas · ${plan.stale ? "desatualizada" : "atual"}`, "secondary");
+    const button = make("button", `${new Date(plan.created_at).toLocaleString("pt-BR")} · ${plan.macro_stop_count} macro-paradas (${plan.multi_address_stop_count} com caminhada candidata) · ${plan.stale ? "desatualizada" : "atual"}`, "secondary");
     button.type = "button"; button.onclick = () => { macroPlanId = plan.id; renderMacroPlan(plan); };
     $("macro-history").append(button);
   });
@@ -158,9 +158,11 @@ function renderMacroPlan(plan) {
   const title = make("h3", `Proposta: ${plan.macro_stop_count} macro-paradas para ${plan.package_count} pacotes`);
   const summary = make("p", `${plan.exact_coverage ? "Cobertura exata" : "Cobertura inconsistente"} · ${plan.original_stop_count} paradas originais · ${plan.packages_without_original_stop} pacote(s) sem parada original · ${plan.original_stops_split} parada(s) originais divididas${plan.stale ? " · DESATUALIZADA" : ""}.`);
   detail.append(title, summary, make("p", plan.distance_comparison_note));
+  detail.append(make("p", `${plan.multi_address_stop_count} agrupamento(s) com caminhada candidata, incluindo ${plan.cross_street_stop_count} entre ruas diferentes e ${plan.packages_in_multi_address_stops} pacote(s). ${plan.single_address_stop_count} parada(s) individuais. O veículo se desloca entre macro-paradas; só a rede pedestre e a revisão de campo confirmam o trecho a pé.`));
   plan.stops.forEach(stop => {
     const card = document.createElement("article"); card.className = "macro-stop";
     card.append(make("h3", `Macro-parada ${stop.ordinal} · ${stop.package_count} pacote(s)`));
+    card.append(make("p", stop.stop_type === "multi_address_walk_candidate" ? `Caminhada candidata entre ${stop.delivery_point_count} entradas de ${stop.street_count} rua(s).` : "Visita individual: não há outro endereço a pé neste agrupamento."));
     card.append(make("p", `Base candidata: ${stop.candidate_base_address} · estacionamento não verificado.`));
     const addresses = stop.delivery_point_ids.map(id => points.find(point => point.id === id)?.original_address || id);
     const list = document.createElement("ul"); addresses.forEach(address => list.append(make("li", address))); card.append(list);

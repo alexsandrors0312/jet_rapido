@@ -18,6 +18,8 @@ O algoritmo começa com um grupo por ponto e funde grupos viáveis, escolhendo a
 
 A rua textual e a parada original são usadas para comparação, não impõem união. O método é guloso e determinístico; não garante o menor número global de macro-paradas nem calcula o circuito completo. O limite de ida e volta é medido para cada endereço isoladamente. A soma de uma visita a vários endereços ainda depende da etapa 5. Se um único ponto tiver mais pacotes que a capacidade, a proposta é recusada; a futura modelagem de múltiplas cargas da bag no mesmo local deverá tratar esse caso.
 
+Cada macro-parada recebe um tipo descritivo: `single_address_stop` quando contém uma única entrada, ou `multi_address_walk_candidate` quando contém mais de uma. A resposta também conta agrupamentos entre ruas distintas e pacotes nesses agrupamentos. Um grupo de várias ruas **pode** ser caminhável; igualdade de rua não garante passagem. Esses tipos não afirmam que o estacionamento ou a travessia foram homologados. O veículo ainda precisa se deslocar entre macro-paradas.
+
 ## API e painel
 
 Após `alembic upgrade head`, a raiz da API mostra o formulário **Macro-paradas**. Selecione uma matriz de rede atual, ajuste os três limites e gere a proposta. A tela lista endereços, pacotes, paradas originais, máximos de caminhada e estado da revisão. É possível aceitar ou rejeitar cada agrupamento com observação. Propostas antigas permanecem consultáveis e aparecem desatualizadas após revisão geográfica ou troca do provedor.
@@ -42,6 +44,13 @@ Repetir a criação com a mesma matriz e parâmetros devolve a proposta existent
 
 A resposta mostra pacotes cobertos, pontos, número de paradas originais, macro-paradas propostas, pacotes sem parada original e quantas paradas originais foram divididas. Também mostra os limites medidos em cada macro-parada. A planilha não registra onde o veículo estacionou antes nem os percursos a pé da execução original; por isso a API informa `distance_comparison_available=false` e não declara economia de distância ou retornos.
 
-A amostra fornecida em 01/10/2026 foi **lida localmente**, sem entrar no Git: 18 pacotes, 16 paradas numeradas, 1 pacote sem ordem, 17 coordenadas distintas e 1 rua candidata distribuída entre paradas. A amostra ainda não gerou proposta operacional porque não há matriz pedestre regional validada nem revisão das entradas dessa rota. Os testes versionados usam somente dados sintéticos.
+As duas amostras foram **lidas localmente**, sem entrar no Git. A triagem abaixo usa apenas distância em linha reta entre coordenadas importadas e os mesmos limites numéricos padrão. É um **indicador de densidade**, não uma matriz de caminhada nem uma proposta operacional:
+
+| Rota | Pacotes | Pontos de entrega | Ponto vizinho a até 100 m em linha reta | Grupos geométricos candidatos | Grupos com mais de uma entrada |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 30/09/2026 | 18 | 17 | 8 | 7 | 3 |
+| 22/09/2026 | 38 | 35 | 34 | 6 | 6 |
+
+A rota de 30/09 é mais dispersa e inclui visitas individuais; a de 22/09 apresenta mais potencial para caminhar entre endereços de ruas diferentes. Mesmo na primeira, a triagem encontra alguns bolsões próximos. Nenhum desses grupos foi aceito para operação: faltam a matriz pedestre regional, a conferência dos acessos e a validação de estacionamento. Os testes versionados usam somente dados sintéticos.
 
 Para concluir a etapa em campo: preparar o extrato pedestre da região, conferir entradas e barreiras, obter a matriz de rede, revisar os agrupamentos e validar estacionamento e capacidade da bag. A ordem veicular e os circuitos fechados são da etapa 5.

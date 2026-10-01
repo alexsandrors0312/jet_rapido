@@ -47,8 +47,8 @@ class MacroPlanTests(unittest.TestCase):
         records = [
             row("PKG-001", 1, "Av. Exemplo, 10"),
             row("PKG-002", 1, "Av. Exemplo, 10"),
-            row("PKG-003", 2, "Av. Exemplo, 20"),
-            row("PKG-004", "-", "Av. Exemplo, 30"),
+            row("PKG-003", 2, "Rua Travessa, 20"),
+            row("PKG-004", "-", "Rua Segunda, 30"),
             row("PKG-005", 4, "Av. Exemplo, 40"),
         ]
         for record, offset in zip(records, (0, 0, 1, 2, 10)):
@@ -80,12 +80,18 @@ class MacroPlanTests(unittest.TestCase):
         self.assertEqual(plan["package_count"], 5)
         self.assertEqual(plan["point_count"], 4)
         self.assertEqual(plan["macro_stop_count"], 3)
+        self.assertEqual(plan["multi_address_stop_count"], 1)
+        self.assertEqual(plan["single_address_stop_count"], 2)
+        self.assertEqual(plan["cross_street_stop_count"], 1)
+        self.assertEqual(plan["packages_in_multi_address_stops"], 3)
         self.assertEqual(plan["original_stop_count"], 3)
         self.assertEqual(plan["packages_without_original_stop"], 1)
         self.assertFalse(plan["distance_comparison_available"])
         self.assertEqual(sorted(stop["package_count"] for stop in plan["stops"]), [1, 1, 3])
         self.assertTrue(any(stop["original_stops"] == [4] and stop["package_count"] == 1
                             for stop in plan["stops"]))
+        self.assertTrue(any(stop["stop_type"] == "multi_address_walk_candidate" and
+                            stop["street_count"] == 2 for stop in plan["stops"]))
         self.assertTrue(all(stop["max_pairwise_m"] <= 150 and
                             stop["max_base_roundtrip_m"] <= 250 and
                             stop["parking_status"] == "unverified" for stop in plan["stops"]))

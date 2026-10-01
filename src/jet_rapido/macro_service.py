@@ -198,10 +198,19 @@ def macro_plan_response(session: Session, plan: MacroPlan, provider, *, idempote
     points = {point.id: point for point in list_delivery_points(session, plan.route_id)}
     original_to_groups = defaultdict(set)
     stops = []
+    multi_address_count = 0
+    packages_in_multi_address = 0
+    cross_street_count = 0
     for stop in plan.stops:
         assigned = sorted((points[a.delivery_point_id] for a in stop.assignments),
                           key=lambda point: (min(p.source_row for p in point.packages), point.id))
         packages = [package for point in assigned for package in point.packages]
+        street_count = len({package.street_key for package in packages})
+        if len(assigned) > 1:
+            multi_address_count += 1
+            packages_in_multi_address += len(packages)
+            if street_count > 1:
+                cross_street_count += 1
         for package in packages:
             if package.original_stop is not None:
                 original_to_groups[package.original_stop].add(stop.id)
@@ -209,6 +218,8 @@ def macro_plan_response(session: Session, plan: MacroPlan, provider, *, idempote
                       "candidate_base_point_id": stop.candidate_base_point_id,
                       "candidate_base_address": stop.candidate_base.original_address,
                       "parking_status": "unverified", "delivery_point_ids": [point.id for point in assigned],
+                      "delivery_point_count": len(assigned), "street_count": street_count,
+                      "stop_type": "multi_address_walk_candidate" if len(assigned) > 1 else "single_address_stop",
                       "package_count": stop.package_count,
                       "original_stops": sorted({p.original_stop for p in packages if p.original_stop is not None}),
                       "max_pairwise_m": stop.max_pairwise_m,
@@ -229,6 +240,10 @@ def macro_plan_response(session: Session, plan: MacroPlan, provider, *, idempote
             "packages_without_original_stop": sum(p.original_stop is None for p in route.packages),
             "original_stops_split": sum(len(groups) > 1 for groups in original_to_groups.values()),
             "macro_stop_count": len(stops),
+            "multi_address_stop_count": multi_address_count,
+            "single_address_stop_count": len(stops) - multi_address_count,
+            "cross_street_stop_count": cross_street_count,
+            "packages_in_multi_address_stops": packages_in_multi_address,
             "distance_comparison_available": False,
             "distance_comparison_note": "A planilha não informa estacionamento original nem percurso a pé; não é possível medir economia de caminhada ou retornos.",
             "stops": stops}
