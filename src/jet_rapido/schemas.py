@@ -142,6 +142,59 @@ class HealthResponse(BaseModel):
     status: str
 
 
+class MacroPlanCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
+    walking_matrix_id: str
+    max_packages: int = Field(default=8, ge=1, le=200)
+    max_pairwise_m: float = Field(default=400, gt=0)
+    max_base_roundtrip_m: float = Field(default=600, gt=0)
+
+
+class MacroStopReviewRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    review_status: Literal["accepted", "rejected"]
+    review_note: str | None = Field(default=None, max_length=2000)
+
+
+class MacroStopResponse(BaseModel):
+    id: str
+    ordinal: int
+    candidate_base_point_id: str
+    candidate_base_address: str
+    parking_status: Literal["unverified"]
+    delivery_point_ids: list[str]
+    package_count: int
+    original_stops: list[int]
+    max_pairwise_m: float
+    max_base_roundtrip_m: float
+    review_status: Literal["pending", "accepted", "rejected"]
+    review_note: str | None
+    reviewed_at: datetime | None
+
+
+class MacroPlanResponse(BaseModel):
+    id: str
+    route_id: str
+    walking_matrix_id: str
+    input_hash: str
+    created_at: datetime
+    stale: bool
+    idempotent: bool = False
+    max_packages: int
+    max_pairwise_m: float
+    max_base_roundtrip_m: float
+    package_count: int
+    point_count: int
+    exact_coverage: bool
+    original_stop_count: int
+    packages_without_original_stop: int
+    original_stops_split: int
+    macro_stop_count: int
+    distance_comparison_available: bool
+    distance_comparison_note: str
+    stops: list[MacroStopResponse]
+
+
 class DeliveryPointReviewResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     revision: int

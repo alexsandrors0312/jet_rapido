@@ -16,7 +16,7 @@ Manter uma etapa principal em andamento. Evitar trocar de stack sem necessidade 
 | 1 | Importador local | 32 pacotes preservados; validações e testes de regressão | Implementada |
 | 2 | API e persistência | Importar, consultar e revisar rota; mesma importação não duplica pacotes; migrações testadas | Implementada |
 | 3 | Revisão geográfica e mapas | Conferir entradas e coordenadas; matriz caminhável com inacessíveis explícitos | Software entregue; homologação de campo pendente |
-| 4 | Macro-paradas | Capacidade e caminhada limitadas; nenhum pacote perdido; comparação com original | Pendente |
+| 4 | Macro-paradas | Capacidade e caminhada limitadas; nenhum pacote perdido; comparação com original | Software de proposta entregue; validação regional e estacionamento pendentes |
 | 5 | Ordem veicular e circuitos | Rota pedestre retorna ao carro; estacionamentos acessíveis; custos mensuráveis | Pendente |
 | 6 | Mobile operacional | Confirmar estacionamento, preparar bag e registrar entregas | Pendente |
 | 7 | Voz e offline | Testes em Android real com tela bloqueada, queda de rede e sincronização repetida | Pendente |
@@ -36,7 +36,7 @@ A prova técnica de GPS/áudio em Android deve ocorrer antes de investir na inte
 8. Correções têm revisão numérica e histórico; matrizes guardam as entradas usadas e indicam desatualização.
 9. O CI prepara um OSRM real com perfil `foot.lua` e uma rede sintética, além do PostgreSQL.
 
-As etapas 4 e 5 serão desenvolvidas em um novo chat, conforme combinado. Podem ser verificadas inicialmente com redes sintéticas; o uso em operação exige validar cobertura pedestre e entradas da região. A prova Android antecede a interface mobile completa. A API rejeita pontos geográficos marcados como inválidos, e matrizes `estimate_only` não servem como evidência de viabilidade pedestre.
+A etapa 4 começou em 01/10/2026 com redes sintéticas; o uso em operação exige validar cobertura pedestre, entradas da região, estacionamento e capacidade da bag. A etapa 5 permanece pendente. A prova Android antecede a interface mobile completa. A API rejeita pontos geográficos marcados como inválidos, e matrizes `estimate_only` não servem como evidência de viabilidade pedestre.
 
 ## Rotina de qualidade
 
@@ -101,3 +101,12 @@ Branch principal: main. O remoto público é `alexsandrors0312/jet_rapido`. Dado
 - Painel exercitado no navegador: confirmação, correção, consulta da matriz e sinalização de desatualização após nova revisão.
 - O software desta etapa está entregue. Cobertura da região real e GPS/voz em Android continuam pendentes de homologação, pois não havia serviço regional nem aparelho/SDK disponíveis.
 - Etapas 4 e 5 podem começar em novo chat com redes sintéticas e as condições de uso operacional descritas no documento de continuação.
+
+## Etapa 4 — incremento de 01/10/2026
+
+- Propostas de macro-paradas persistidas com capacidade de bag e limites de caminhada configuráveis, usando apenas matriz `network` completa e atual.
+- Cada pacote permanece coberto exatamente uma vez; pares dirigidos inacessíveis impedem uma união. A rua textual não impõe agrupamento.
+- O painel permite gerar propostas e aceitar/rejeitar agrupamentos com observação. Bases candidatas são marcadas como estacionamento não verificado.
+- A comparação informa contagens e medidas da proposta; distância e retornos reais da rota original não podem ser medidos sem os estacionamentos/percurso anterior.
+- A amostra de 30/09/2026 foi lida localmente: 18 pacotes, 16 paradas numeradas e 1 pacote sem ordem. Nenhuma planilha real foi adicionada ao Git.
+- Detalhes e limites em `ETAPA_4_MACRO_PARADAS.md`. A homologação regional e a etapa 5 continuam pendentes.

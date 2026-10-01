@@ -1,5 +1,7 @@
 # Retomada em novo chat — etapas 4 e 5
 
+> Atualização de 01/10/2026: a etapa 4 recebeu implementação técnica de propostas revisáveis. Consulte `ETAPA_4_MACRO_PARADAS.md` e o guia para o estado atual. As instruções históricas abaixo registram o escopo original da retomada.
+
 ## Pedido do usuário
 
 Continuar o Jet Rápido na pasta `C:/Users/Alexs/Desktop/jet_rapido`. Desenvolver as etapas 4 (macro-paradas) e 5 (ordem veicular e circuitos pedestres) em um novo chat, após a entrega de software da etapa 3. O usuário autorizou publicação do código em `alexsandrors0312/jet_rapido`; dados reais ficam fora do Git.

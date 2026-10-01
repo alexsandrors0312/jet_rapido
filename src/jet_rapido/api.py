@@ -16,6 +16,10 @@ from .config import Settings
 from .database import create_database_engine, create_session_factory
 from .importer import ImportValidationError, import_workbook
 from .maps import MapProviderError, WalkingMatrixProvider, build_walking_provider
+from .macro_service import (
+    MacroPlanError, create_macro_plan, get_macro_plan, list_macro_plans,
+    macro_plan_response, review_macro_stop,
+)
 from .models import DeliveryPointReview, WalkingMatrix
 from .repository import (
     confirm_imported_delivery_points,
@@ -44,6 +48,9 @@ from .schemas import (
     WalkingMatrixEntryResponse,
     WalkingMatrixResponse,
     DeliveryPointReviewResponse,
+    MacroPlanCreateRequest,
+    MacroPlanResponse,
+    MacroStopReviewRequest,
 )
 from .walking_service import (
     GeographicReviewRequired, InvalidMatrixResult, MatrixLimitExceeded, create_walking_matrix,
@@ -104,8 +111,8 @@ def create_app(
 
     app = FastAPI(
         title="Jet Rápido API",
-        version="0.3.1",
-        description="Importação auditável, revisão geográfica e matrizes pedestres.",
+        version="0.4.0",
+        description="Importação auditável, revisão geográfica, matrizes e rascunhos de macro-paradas.",
     )
     app.state.settings = settings
     app.state.engine = engine
@@ -353,6 +360,68 @@ def create_app(
                 session, matrix_id, limit=limit, offset=offset
             )
         ]
+
+    @app.post(
+        "/api/v1/routes/{route_id}/macro-plans",
+        response_model=MacroPlanResponse,
+        status_code=status.HTTP_201_CREATED,
+        tags=["macro-paradas"],
+    )
+    def create_route_macro_plan(
+        route_id: str,
+        command: MacroPlanCreateRequest,
+        response: Response,
+        session: Session = Depends(get_session),
+    ) -> MacroPlanResponse:
+        if not get_route(session, route_id):
+            raise HTTPException(status_code=404, detail="Rota não encontrada.")
+        try:
+            plan, idempotent = create_macro_plan(
+                session, route_id=route_id,
+                matrix_id=command.walking_matrix_id,
+                provider=app.state.walking_provider,
+                max_packages=command.max_packages,
+                max_pairwise_m=command.max_pairwise_m,
+                max_base_roundtrip_m=command.max_base_roundtrip_m,
+            )
+        except MacroPlanError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        if idempotent:
+            response.status_code = status.HTTP_200_OK
+        return MacroPlanResponse.model_validate(
+            macro_plan_response(session, plan, app.state.walking_provider, idempotent=idempotent)
+        )
+
+    @app.get("/api/v1/routes/{route_id}/macro-plans", response_model=list[MacroPlanResponse], tags=["macro-paradas"])
+    def read_route_macro_plans(
+        route_id: str, limit: int = Query(20, ge=1, le=100),
+        offset: int = Query(0, ge=0), session: Session = Depends(get_session),
+    ) -> list[MacroPlanResponse]:
+        if not get_route(session, route_id):
+            raise HTTPException(status_code=404, detail="Rota não encontrada.")
+        return [MacroPlanResponse.model_validate(macro_plan_response(session, plan, app.state.walking_provider))
+                for plan in list_macro_plans(session, route_id, limit=limit, offset=offset)]
+
+    @app.get("/api/v1/macro-plans/{plan_id}", response_model=MacroPlanResponse, tags=["macro-paradas"])
+    def read_macro_plan(plan_id: str, session: Session = Depends(get_session)) -> MacroPlanResponse:
+        plan = get_macro_plan(session, plan_id)
+        if plan is None:
+            raise HTTPException(status_code=404, detail="Proposta não encontrada.")
+        return MacroPlanResponse.model_validate(macro_plan_response(session, plan, app.state.walking_provider))
+
+    @app.patch("/api/v1/macro-stops/{stop_id}/review", response_model=MacroPlanResponse, tags=["macro-paradas"])
+    def review_stop(stop_id: str, command: MacroStopReviewRequest,
+                    session: Session = Depends(get_session)) -> MacroPlanResponse:
+        try:
+            stop = review_macro_stop(session, stop_id, review_status=command.review_status,
+                                     review_note=command.review_note, provider=app.state.walking_provider)
+        except MacroPlanError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        if stop is None:
+            raise HTTPException(status_code=404, detail="Macro-parada não encontrada.")
+        return MacroPlanResponse.model_validate(
+            macro_plan_response(session, get_macro_plan(session, stop.plan_id), app.state.walking_provider)
+        )
 
     return app
 

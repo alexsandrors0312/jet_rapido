@@ -67,6 +67,9 @@ class Route(Base):
     walking_matrices: Mapped[list["WalkingMatrix"]] = relationship(
         back_populates="route", cascade="all, delete-orphan"
     )
+    macro_plans: Mapped[list["MacroPlan"]] = relationship(
+        back_populates="route", cascade="all, delete-orphan"
+    )
 
 
 class DeliveryPoint(Base):
@@ -170,6 +173,7 @@ class WalkingMatrix(Base):
     entries: Mapped[list["WalkingMatrixEntry"]] = relationship(
         back_populates="matrix", cascade="all, delete-orphan"
     )
+    macro_plans: Mapped[list["MacroPlan"]] = relationship(back_populates="walking_matrix")
 
 
 class WalkingMatrixEntry(Base):
@@ -212,3 +216,64 @@ class DeliveryPointReview(Base):
     before: Mapped[dict] = mapped_column(JSON, nullable=False)
     after: Mapped[dict] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+
+
+class MacroPlan(Base):
+    __tablename__ = "macro_plans"
+    __table_args__ = (UniqueConstraint("route_id", "input_hash", name="uq_macro_plan_route_input"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    route_id: Mapped[str] = mapped_column(ForeignKey("routes.id", ondelete="CASCADE"), nullable=False, index=True)
+    walking_matrix_id: Mapped[str] = mapped_column(
+        ForeignKey("walking_matrices.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    max_packages: Mapped[int] = mapped_column(Integer, nullable=False)
+    max_pairwise_m: Mapped[float] = mapped_column(Float, nullable=False)
+    max_base_roundtrip_m: Mapped[float] = mapped_column(Float, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+
+    route: Mapped[Route] = relationship(back_populates="macro_plans")
+    walking_matrix: Mapped[WalkingMatrix] = relationship(back_populates="macro_plans")
+    stops: Mapped[list["MacroStop"]] = relationship(
+        back_populates="plan", cascade="all, delete-orphan", order_by="MacroStop.ordinal"
+    )
+
+
+class MacroStop(Base):
+    __tablename__ = "macro_stops"
+    __table_args__ = (UniqueConstraint("plan_id", "ordinal", name="uq_macro_stop_plan_ordinal"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    plan_id: Mapped[str] = mapped_column(ForeignKey("macro_plans.id", ondelete="CASCADE"), nullable=False, index=True)
+    ordinal: Mapped[int] = mapped_column(Integer, nullable=False)
+    candidate_base_point_id: Mapped[str] = mapped_column(
+        ForeignKey("delivery_points.id", ondelete="RESTRICT"), nullable=False
+    )
+    package_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    max_pairwise_m: Mapped[float] = mapped_column(Float, nullable=False)
+    max_base_roundtrip_m: Mapped[float] = mapped_column(Float, nullable=False)
+    review_status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
+    review_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    plan: Mapped[MacroPlan] = relationship(back_populates="stops")
+    candidate_base: Mapped[DeliveryPoint] = relationship(foreign_keys=[candidate_base_point_id])
+    assignments: Mapped[list["MacroStopPoint"]] = relationship(
+        back_populates="stop", cascade="all, delete-orphan"
+    )
+
+
+class MacroStopPoint(Base):
+    __tablename__ = "macro_stop_points"
+    __table_args__ = (UniqueConstraint("plan_id", "delivery_point_id", name="uq_macro_plan_point"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    plan_id: Mapped[str] = mapped_column(ForeignKey("macro_plans.id", ondelete="CASCADE"), nullable=False)
+    stop_id: Mapped[str] = mapped_column(ForeignKey("macro_stops.id", ondelete="CASCADE"), nullable=False, index=True)
+    delivery_point_id: Mapped[str] = mapped_column(
+        ForeignKey("delivery_points.id", ondelete="RESTRICT"), nullable=False
+    )
+
+    stop: Mapped[MacroStop] = relationship(back_populates="assignments")
+    delivery_point: Mapped[DeliveryPoint] = relationship()

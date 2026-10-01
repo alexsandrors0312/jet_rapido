@@ -2,9 +2,9 @@
 
 Assistente de entregas last-mile: planejar onde estacionar, quais pacotes levar e como fazer o circuito a pé até voltar ao carro.
 
-**Estado: etapa 3 em validação operacional — revisão geográfica e mapas.** A aplicação importa o XLSX, preserva endereços e coordenadas originais, permite confirmar ou corrigir pontos e persiste matrizes pedestres auditáveis. O adaptador OSRM está implementado; a cobertura da região ainda precisa ser validada em um serviço com perfil pedestre antes de formar macro-paradas.
+**Estado: etapa 4 implementada como proposta revisável; homologação regional pendente.** A aplicação importa o XLSX, preserva endereços e coordenadas originais, permite confirmar ou corrigir pontos, persiste matrizes pedestres auditáveis e agrupa pontos em macro-paradas com limites configuráveis. O adaptador OSRM está implementado; sem cobertura pedestre validada da região, nenhuma proposta deve ser usada em operação.
 
-O painel de revisão está na página inicial da API: **http://127.0.0.1:8000/**. Nele é possível importar a planilha, buscar endereços, selecionar pontos no mapa, corrigir entradas, consultar o histórico e calcular matrizes. Matrizes de revisões anteriores aparecem como desatualizadas.
+O painel está na página inicial da API: **http://127.0.0.1:8000/**. Nele é possível importar a planilha, buscar endereços, selecionar pontos no mapa, corrigir entradas, consultar o histórico, calcular matrizes e gerar/revisar propostas de macro-paradas. Matrizes e propostas de revisões anteriores aparecem como desatualizadas.
 
 Para experimentar com três endereços fictícios, em um banco separado:
 
@@ -44,6 +44,8 @@ curl.exe -F "file=@C:\caminho\rota shoppe.xlsx" http://127.0.0.1:8000/api/v1/imp
 
 O provedor padrão `straight_line` serve para testes locais e identifica a matriz como `estimate_only`. Para usar rede pedestre, configure `MAP_PROVIDER=osrm` e aponte `OSRM_BASE_URL` para um serviço preparado com o extrato e perfil da região. Consulte o guia da etapa 3 antes de usar uma matriz em clusterização.
 
+Para gerar macro-paradas, confirme ou corrija todos os pontos e calcule uma matriz `network` atual. O padrão provisório é 8 pacotes por saída da bag; os limites de caminhada podem ser ajustados na tela. A base calculada não é um estacionamento confirmado. Consulte [a etapa 4](docs/ETAPA_4_MACRO_PARADAS.md).
+
 ## Iniciar com PostgreSQL/PostGIS
 
 Com Docker disponível:
@@ -72,6 +74,7 @@ O resumo do terminal contém apenas contagens. O JSON contém endereços, coorde
 - [Contrato de importação](docs/IMPORTACAO.md)
 - [API e persistência](docs/ETAPA_2_API.md)
 - [Revisão geográfica e mapas](docs/ETAPA_3_GEOGRAFIA_MAPAS.md)
+- [Macro-paradas](docs/ETAPA_4_MACRO_PARADAS.md)
 - [Arquitetura e modelo de dados planejados](docs/ARQUITETURA.md)
 - [Retomada das etapas 4 e 5 em novo chat](docs/CONTINUACAO_ETAPAS_4_5.md)
 
