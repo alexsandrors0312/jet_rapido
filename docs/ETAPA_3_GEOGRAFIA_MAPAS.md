@@ -162,6 +162,24 @@ Depois de conferir as entradas no painel, produza o relatório privado:
 
 Esse script exige provedor `network`, não confirma coordenadas, preserva pares dirigidos de ruas divididas e recusa sobrescrita da saída. O relatório mantém `field_acceptance` pendente: custo calculado não prova portão aberto, travessia segura ou estacionamento permitido.
 
+### Preparação local no Windows e diagnóstico provisório
+
+Quando Docker/WSL não estiver disponível, é possível preparar o grafo com os executáveis Windows do pacote `osrm-bindings` e recortar um PBF regional com Pyosmium. Os pacotes são ferramentas locais; o projeto não os inclui como dependências de produção. O script `scripts/prepare_osrm_windows.py` deriva uma área com margem a partir das coordenadas efetivas no SQLite, mantém o extrato e o resultado em `data/` (ignorada pelo Git), aplica `foot.lua`, executa `osrm-contract` e grava o SHA-256 do recorte em `dataset.json`. O recorte é somente para diagnóstico das rotas existentes: outra região exige novo dataset.
+
+Para as amostras de Diadema e São Bernardo, o extrato estadual está no [servidor de extratos OSM France](https://download.openstreetmap.fr/extracts/south-america/brazil/southeast/). Confira o MD5 publicado ao lado do PBF antes do processamento. O download do extrato não requer transmitir planilhas, endereços nem coordenadas das entregas.
+
+```powershell
+.\.venv\Scripts\python.exe -m pip download --only-binary=:all: --no-deps osrm-bindings==0.3.0 osmium==4.3.1 -d data\osrm-tools
+.\.venv\Scripts\python.exe -m pip install --no-index --no-deps --target data\osrm-tools\runtime (Get-ChildItem data\osrm-tools\*.whl).FullName
+.\.venv\Scripts\python.exe scripts\prepare_osrm_windows.py data\osrm-source\sao-paulo.osm.pbf
+$env:PATH = (Resolve-Path data\osrm-tools\runtime\osrm_bindings.libs).Path + ';' + $env:PATH
+& data\osrm-tools\runtime\bin\osrm-routed.exe --algorithm ch --ip 127.0.0.1 --port 5000 data\osrm-walking\map.osrm
+```
+
+Em outro terminal, configure `MAP_PROVIDER=osrm`, `OSRM_DATASET_REVISION` com `crop_sha256` de `data/osrm-walking/dataset.json` e execute a API. Para inspecionar as entradas sem alterá-las, use `scripts/audit_osrm_entries.py --output outputs/auditoria-entradas.json`. Ele consulta apenas o OSRM local e destaca pontos além do raio de 50 m e coordenadas repetidas entre endereços. O resultado não confirma uma entrada física.
+
+Se houver pontos `pending`, a matriz de rede pode ser calculada como **diagnóstico provisório** com `scripts/validate_walking.py ID_DA_ROTA --provisional --output outputs/matriz-provisoria.json`. O relatório explicita `review_mode=provisional`. A etapa 4 continua recusando pontos pendentes mesmo que a matriz exista; a aceitação final exige revisão das entradas e conferência operacional de portões, barreiras e travessias.
+
 ## Verificações desta continuação
 
 - Testes de correções concorrentes, histórico, snapshots, desatualização por revisão/configuração e revisão durante consulta de rede.

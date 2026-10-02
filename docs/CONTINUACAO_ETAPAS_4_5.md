@@ -1,6 +1,6 @@
 # Retomada em novo chat — etapas 4 e 5
 
-> Atualização de 01/10/2026: a etapa 4 recebeu implementação técnica de propostas revisáveis. Consulte `ETAPA_4_MACRO_PARADAS.md` e o guia para o estado atual. As instruções históricas abaixo registram o escopo original da retomada.
+> Atualização de 01/10/2026: a etapa 4 recebeu implementação técnica de propostas revisáveis. Um extrato pedestre local foi preparado e as duas amostras importadas receberam matrizes OSRM provisórias, completas e atuais (17 e 35 pontos; nenhum par inacessível). A auditoria automática encontrou todos os pontos a até 50 m da rede. Ainda há 51 entradas `pending`; a etapa 4 continua bloqueada até revisão das entradas. Consulte `ETAPA_3_GEOGRAFIA_MAPAS.md` e `ETAPA_4_MACRO_PARADAS.md` para o fluxo atual. As instruções históricas abaixo registram o escopo original da retomada.
 
 ## Pedido do usuário
 

@@ -51,6 +51,8 @@ As duas amostras foram **lidas localmente**, sem entrar no Git. A triagem abaixo
 | 30/09/2026 | 18 | 17 | 8 | 7 | 3 |
 | 22/09/2026 | 38 | 35 | 34 | 6 | 6 |
 
-A rota de 30/09 é mais dispersa e inclui visitas individuais; a de 22/09 apresenta mais potencial para caminhar entre endereços de ruas diferentes. Mesmo na primeira, a triagem encontra alguns bolsões próximos. Nenhum desses grupos foi aceito para operação: faltam a matriz pedestre regional, a conferência dos acessos e a validação de estacionamento. Os testes versionados usam somente dados sintéticos.
+A rota de 30/09 é mais dispersa e inclui visitas individuais; a de 22/09 apresenta mais potencial para caminhar entre endereços de ruas diferentes. Mesmo na primeira, a triagem encontra alguns bolsões próximos. Na triagem inicial, faltavam a matriz pedestre regional, a conferência dos acessos e a validação de estacionamento. Nenhum desses grupos foi aceito para operação. Os testes versionados usam somente dados sintéticos.
+
+Em 01/10/2026, a preparação local do extrato pedestre e a auditoria automática das duas rotas produziram matrizes de rede atuais para 17 e 35 pontos, com 0 pares inacessíveis. Elas foram calculadas em modo **provisório**, pois 51 dos 52 pontos ainda estão `pending`. Assim, a condição de entrada da etapa 4 continua bloqueada. Os relatórios detalhados, o extrato e o banco ficam somente em `outputs/` e `data/`, fora do Git. A conferência de portões, travessias, bases veiculares e capacidade física da bag segue pendente.
 
 Para concluir a etapa em campo: preparar o extrato pedestre da região, conferir entradas e barreiras, obter a matriz de rede, revisar os agrupamentos e validar estacionamento e capacidade da bag. A ordem veicular e os circuitos fechados são da etapa 5.

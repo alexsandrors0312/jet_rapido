@@ -12,6 +12,8 @@ def main():
     parser.add_argument("route_id")
     parser.add_argument("--api-url", default="http://127.0.0.1:8000")
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--provisional", action="store_true",
+                        help="Calcular com pontos pendentes para diagnóstico, sem liberar macro-paradas")
     args = parser.parse_args()
     if args.output.exists():
         parser.error("O relatório já existe. Escolha outro arquivo de saída.")
@@ -24,7 +26,8 @@ def main():
         if config["quality"] != "network":
             parser.error("A validação exige um provedor de rede pedestre.")
         route = get(f"/api/v1/routes/{args.route_id}")
-        response = client.post(f"/api/v1/routes/{args.route_id}/walking-matrices", json={})
+        response = client.post(f"/api/v1/routes/{args.route_id}/walking-matrices",
+                               json={"allow_unreviewed": args.provisional})
         response.raise_for_status()
         matrix = response.json()
         if matrix["stale"]:
@@ -47,6 +50,7 @@ def main():
                      and entry["origin_delivery_point_id"] != entry["destination_delivery_point_id"]]
             split.append({"street_key": key, "original_stops": stops, "directed_pairs": pairs})
         report = {"checked_at": datetime.now(timezone.utc).isoformat(), "matrix": matrix,
+                  "review_mode": "provisional" if args.provisional else "reviewed",
                   "split_streets": split, "unreachable_pairs": [entry for entry in entries if not entry["reachable"]],
                   "field_acceptance": "pending — confirmar portões, barreiras e travessias em campo"}
         args.output.parent.mkdir(parents=True, exist_ok=True)
