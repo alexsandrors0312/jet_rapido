@@ -111,3 +111,11 @@ Branch principal: main. O remoto público é `alexsandrors0312/jet_rapido`. Dado
 - A amostra de 30/09/2026 foi lida localmente: 18 pacotes, 16 paradas numeradas e 1 pacote sem ordem. Nenhuma planilha real foi adicionada ao Git.
 - Detalhes e limites em `ETAPA_4_MACRO_PARADAS.md`. A homologação regional e a etapa 5 continuam pendentes.
 - Após a comparação com a amostra de 22/09/2026, a proposta passou a distinguir paradas individuais de agrupamentos candidatos a caminhada, inclusive entre ruas diferentes. Essa classificação é descritiva e depende da rede pedestre para ser gerada.
+
+## Revisão de entradas e matrizes — 02/10/2026
+
+- Executada a tarefa delegada de revisão das entradas pendentes das duas rotas locais, com evidência somente local (auditoria OSRM, nomes de via, números de porta e geometria do recorte OSM em `data/osrm-walking/map.osm.pbf`, varredura do extrato estadual). Novo diagnóstico versionado em `scripts/osm_evidence.py` (não embute dados reais).
+- Nenhuma confirmação ou correção automática foi feita: nome de via e número de porta no OSM não comprovam portão, travessia ou acesso. Os 51 pontos pendentes permanecem pendentes; o relatório privado `outputs/revisao-entradas-osrm-20261002.md` lista o que cada caso exige do operador/campo, com destaque para Casa Grande 2343 e Casa Grande 1340 (coordenadas divergentes da numeração local).
+- A correção prévia do operador (Tomé de Souza 280, revisão 4) foi preservada e a matriz de 22/09 foi recalculada com ela: `7fab9bc8…`, 35×35, 0 pares inacessíveis, atual. A matriz de 30/09 (`a9498e40…`, 17×17) permaneceu válida.
+- Propostas da etapa 4 continuam bloqueadas pelo gate de revisão (HTTP 409 exercitado nas duas rotas); nenhuma proposta foi gerada sem entradas aceitas.
+- Testes locais: 45 passaram, 2 pulados (integrações PostgreSQL/OSRM do CI). Rodada local exigiu contornar a negação de escrita da sandbox em diretórios `mkdir(0o700)` do `tempfile` — sem mudança de código do projeto.

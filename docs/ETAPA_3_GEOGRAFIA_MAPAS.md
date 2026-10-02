@@ -178,6 +178,8 @@ $env:PATH = (Resolve-Path data\osrm-tools\runtime\osrm_bindings.libs).Path + ';'
 
 Em outro terminal, configure `MAP_PROVIDER=osrm`, `OSRM_DATASET_REVISION` com `crop_sha256` de `data/osrm-walking/dataset.json` e execute a API. Para inspecionar as entradas sem alterá-las, use `scripts/audit_osrm_entries.py --output outputs/auditoria-entradas.json`. Ele consulta apenas o OSRM local e destaca pontos além do raio de 50 m e coordenadas repetidas entre endereços. O resultado não confirma uma entrada física.
 
+Como complemento de evidência, `scripts/osm_evidence.py --output outputs/evidencia-osm.json` cruza cada ponto com o recorte local (`data/osrm-walking/map.osm.pbf`): vias nomeadas próximas e números de porta (`addr:housenumber`) do OSM, sem depender de serviços externos e sem alterar revisões. Ajuda a distinguir “coordenada compatível com a rua” de “coordenada em trecho numérico diferente” (ex.: número 2343 de uma avenida numa coordenada do trecho 1300), mas continua não comprovando portão ou travessia.
+
 Se houver pontos `pending`, a matriz de rede pode ser calculada como **diagnóstico provisório** com `scripts/validate_walking.py ID_DA_ROTA --provisional --output outputs/matriz-provisoria.json`. O relatório explicita `review_mode=provisional`. A etapa 4 continua recusando pontos pendentes mesmo que a matriz exista; a aceitação final exige revisão das entradas e conferência operacional de portões, barreiras e travessias.
 
 ## Verificações desta continuação
