@@ -16,7 +16,7 @@ Manter uma etapa principal em andamento. Evitar trocar de stack sem necessidade 
 | 1 | Importador local | 32 pacotes preservados; validações e testes de regressão | Implementada |
 | 2 | API e persistência | Importar, consultar e revisar rota; mesma importação não duplica pacotes; migrações testadas | Implementada |
 | 3 | Revisão geográfica e mapas | Conferir entradas e coordenadas; matriz caminhável com inacessíveis explícitos | Software entregue; homologação de campo pendente |
-| 4 | Macro-paradas | Capacidade e caminhada limitadas; nenhum pacote perdido; comparação com original | Software de proposta entregue; validação regional e estacionamento pendentes |
+| 4 | Macro-paradas | Capacidade e caminhada limitadas; nenhum pacote perdido; comparação com original | Software de proposta entregue, com rascunho explícito por coordenadas; validação regional e estacionamento pendentes |
 | 5 | Ordem veicular e circuitos | Rota pedestre retorna ao carro; estacionamentos acessíveis; custos mensuráveis | Pendente |
 | 6 | Mobile operacional | Confirmar estacionamento, preparar bag e registrar entregas | Pendente |
 | 7 | Voz e offline | Testes em Android real com tela bloqueada, queda de rede e sincronização repetida | Pendente |
@@ -119,3 +119,14 @@ Branch principal: main. O remoto público é `alexsandrors0312/jet_rapido`. Dado
 - A correção prévia do operador (Tomé de Souza 280, revisão 4) foi preservada e a matriz de 22/09 foi recalculada com ela: `7fab9bc8…`, 35×35, 0 pares inacessíveis, atual. A matriz de 30/09 (`a9498e40…`, 17×17) permaneceu válida.
 - Propostas da etapa 4 continuam bloqueadas pelo gate de revisão (HTTP 409 exercitado nas duas rotas); nenhuma proposta foi gerada sem entradas aceitas.
 - Testes locais: 45 passaram, 2 pulados (integrações PostgreSQL/OSRM do CI). Rodada local exigiu contornar a negação de escrita da sandbox em diretórios `mkdir(0o700)` do `tempfile` — sem mudança de código do projeto.
+
+## Proposta por coordenadas — 06/10/2026
+
+- Decisão do usuário: usar latitude e longitude efetivas como base da etapa 4, com o endereço apenas como apoio de busca, apresentação e alerta, para não exigir a conferência manual de todos os pontos.
+- Novo modo explícito `coordinate_preview` em `POST /api/v1/routes/{route_id}/macro-plans`. O padrão `strict` foi preservado: chamadas sem o campo continuam recusando pontos `pending`.
+- O modo é persistido (`macro_plans.planning_mode`, migração `20261006_0005`), entra no hash de idempotência e na resposta (`planning_mode`, `provisional_draft`, `pending_point_count`, `reviewed_point_count`, `review_counts_basis`, `review_notice`). As contagens usam o snapshot da entrada da proposta; planos legados sem snapshot caem no estado atual com sinalização. O hash antigo sem o modo é aceito como fallback apenas para planos estritos migrados, sem confundir o rascunho por coordenadas.
+- `rejected`, coordenadas efetivas inválidas, matriz `estimate_only`/incompleta/antiga/sem snapshot e pares necessários inacessíveis continuam bloqueados nos dois modos. Nenhum status de revisão é alterado.
+- Painel: seleção de modo, opção de calcular matriz provisória com `allow_unreviewed=true`, contagem de pendentes e aviso de rascunho não homologado; a revisão individual de pontos foi preservada.
+- Estado local: 49 `pending` (32 na rota de 22/09 e 17 na de 30/09); 3 `corrected` na de 22/09; matrizes de rede atuais `1aa1242e…` (35×35) e `a9498e40…` (17×17), 0 pares inacessíveis.
+- Limites inalterados e provisórios: 8 pacotes por saída da bag, 400 m entre entradas e 600 m de ida e volta à base. Estacionamento, portões, travessias e capacidade física seguem sem validação. Nenhuma economia de distância é declarada.
+- Próximo passo: validar a proposta por coordenadas e só então avaliar a etapa 5 (ordem veicular e circuitos).

@@ -145,6 +145,9 @@ class HealthResponse(BaseModel):
 class MacroPlanCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
     walking_matrix_id: str
+    # "strict" é o padrão e mantém a recusa de pontos pendentes. O modo por
+    # coordenadas precisa ser pedido explicitamente e produz rascunho não homologado.
+    planning_mode: Literal["strict", "coordinate_preview"] = "strict"
     max_packages: int = Field(default=8, ge=1, le=200)
     max_pairwise_m: float = Field(default=400, gt=0)
     max_base_roundtrip_m: float = Field(default=600, gt=0)
@@ -183,6 +186,12 @@ class MacroPlanResponse(BaseModel):
     created_at: datetime
     stale: bool
     idempotent: bool = False
+    planning_mode: Literal["strict", "coordinate_preview"]
+    provisional_draft: bool
+    pending_point_count: int
+    reviewed_point_count: int
+    review_counts_basis: Literal["plan_input_snapshot", "legacy_current_points"]
+    review_notice: str
     max_packages: int
     max_pairwise_m: float
     max_base_roundtrip_m: float

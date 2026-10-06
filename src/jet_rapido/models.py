@@ -228,6 +228,9 @@ class MacroPlan(Base):
         ForeignKey("walking_matrices.id", ondelete="RESTRICT"), nullable=False, index=True
     )
     input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    # "strict" exige todos os pontos revisados; "coordinate_preview" agrupa pelas
+    # coordenadas efetivas e é sempre um rascunho não homologado.
+    planning_mode: Mapped[str] = mapped_column(String(32), nullable=False, default="strict")
     max_packages: Mapped[int] = mapped_column(Integer, nullable=False)
     max_pairwise_m: Mapped[float] = mapped_column(Float, nullable=False)
     max_base_roundtrip_m: Mapped[float] = mapped_column(Float, nullable=False)

@@ -2,7 +2,7 @@
 
 Assistente de entregas last-mile: planejar onde estacionar, quais pacotes levar e como fazer o circuito a pé até voltar ao carro.
 
-**Estado: etapa 4 implementada como proposta revisável; homologação regional pendente.** A aplicação importa o XLSX, preserva endereços e coordenadas originais, permite confirmar ou corrigir pontos, persiste matrizes pedestres auditáveis e agrupa pontos em macro-paradas com limites configuráveis. O adaptador OSRM está implementado; sem cobertura pedestre validada da região, nenhuma proposta deve ser usada em operação.
+**Estado: etapa 4 implementada como proposta revisável; homologação regional pendente.** A aplicação importa o XLSX, preserva endereços e coordenadas originais, permite confirmar ou corrigir pontos, persiste matrizes pedestres auditáveis e agrupa pontos em macro-paradas com limites configuráveis. O modo estrito continua sendo o padrão; um modo explícito por coordenadas efetivas gera rascunhos não homologados quando há pontos pendentes. O adaptador OSRM está implementado; sem cobertura pedestre validada da região, nenhuma proposta deve ser usada em operação.
 
 O painel está na página inicial da API: **http://127.0.0.1:8000/**. Nele é possível importar a planilha, buscar endereços, selecionar pontos no mapa, corrigir entradas, consultar o histórico, calcular matrizes e gerar/revisar propostas de macro-paradas. Matrizes e propostas de revisões anteriores aparecem como desatualizadas.
 
@@ -44,7 +44,7 @@ curl.exe -F "file=@C:\caminho\rota shoppe.xlsx" http://127.0.0.1:8000/api/v1/imp
 
 O provedor padrão `straight_line` serve para testes locais e identifica a matriz como `estimate_only`. Para usar rede pedestre, configure `MAP_PROVIDER=osrm` e aponte `OSRM_BASE_URL` para um serviço preparado com o extrato e perfil da região. Consulte o guia da etapa 3 antes de usar uma matriz em clusterização.
 
-Para gerar macro-paradas, confirme ou corrija todos os pontos e calcule uma matriz `network` atual. O padrão provisório é 8 pacotes por saída da bag; os limites de caminhada podem ser ajustados na tela. A base calculada não é um estacionamento confirmado. Consulte [a etapa 4](docs/ETAPA_4_MACRO_PARADAS.md).
+Para gerar macro-paradas, confirme ou corrija todos os pontos e calcule uma matriz `network` atual. O padrão provisório é 8 pacotes por saída da bag; os limites de caminhada podem ser ajustados na tela. A base calculada não é um estacionamento confirmado. Quando a conferência manual for lenta demais, o painel oferece o modo explícito **Por coordenadas**, que agrupa pelas coordenadas efetivas mesmo com entradas pendentes e marca a proposta como rascunho não homologado. Consulte [a etapa 4](docs/ETAPA_4_MACRO_PARADAS.md).
 
 ## Iniciar com PostgreSQL/PostGIS
 

@@ -111,7 +111,7 @@ def create_app(
 
     app = FastAPI(
         title="Jet Rápido API",
-        version="0.4.0",
+        version="0.5.0",
         description="Importação auditável, revisão geográfica, matrizes e rascunhos de macro-paradas.",
     )
     app.state.settings = settings
@@ -383,6 +383,7 @@ def create_app(
                 max_packages=command.max_packages,
                 max_pairwise_m=command.max_pairwise_m,
                 max_base_roundtrip_m=command.max_base_roundtrip_m,
+                planning_mode=command.planning_mode,
             )
         except MacroPlanError as error:
             raise HTTPException(status_code=409, detail=str(error)) from error

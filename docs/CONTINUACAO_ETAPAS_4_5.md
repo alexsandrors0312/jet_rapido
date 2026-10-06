@@ -1,6 +1,6 @@
 # Retomada em novo chat — etapas 4 e 5
 
-> Atualização de 01/10/2026: a etapa 4 recebeu implementação técnica de propostas revisáveis. Um extrato pedestre local foi preparado e as duas amostras importadas receberam matrizes OSRM provisórias, completas e atuais (17 e 35 pontos; nenhum par inacessível). A auditoria automática encontrou todos os pontos a até 50 m da rede. Ainda há 51 entradas `pending`; a etapa 4 continua bloqueada até revisão das entradas. Consulte `ETAPA_3_GEOGRAFIA_MAPAS.md` e `ETAPA_4_MACRO_PARADAS.md` para o fluxo atual. As instruções históricas abaixo registram o escopo original da retomada.
+> Atualização de 06/10/2026: o usuário decidiu que a conferência manual de todos os endereços é lenta demais e autorizou avançar usando **latitude e longitude efetivas como base**, com o endereço apenas como apoio de busca, apresentação e alerta. A etapa 4 ganhou o modo explícito `coordinate_preview`, que produz rascunhos não homologados mesmo com pontos `pending`, sem alterar nenhum status de revisão. O padrão da API continua `strict` e segue recusando `pending`. O estado local é de 49 entradas `pending` (32 na rota de 22/09 e 17 na de 30/09) e matrizes de rede atuais (`1aa1242e…`, 35×35; `a9498e40…`, 17×17), com 0 pares inacessíveis. Portões, travessias, estacionamento e capacidade da bag continuam sem validação física. Consulte `ETAPA_4_MACRO_PARADAS.md` para o fluxo atual. As instruções históricas abaixo registram o escopo original da retomada.
 
 ## Pedido do usuário
 

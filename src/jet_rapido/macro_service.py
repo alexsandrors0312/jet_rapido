@@ -16,9 +16,21 @@ from .walking_service import matrix_is_stale
 
 ALGORITHM_VERSION = 1
 
+# Modos de entrada da etapa 4. O padrão é estrito: pendentes só entram quando o
+# operador pede explicitamente o rascunho por coordenadas efetivas.
+PLANNING_MODES = ("strict", "coordinate_preview")
+
 
 class MacroPlanError(ValueError):
     pass
+
+
+def _coordinates_are_valid(point) -> bool:
+    latitude, longitude = point.effective_latitude, point.effective_longitude
+    return (
+        isfinite(latitude) and isfinite(longitude)
+        and -90 <= latitude <= 90 and -180 <= longitude <= 180
+    )
 
 
 def get_macro_plan(session: Session, plan_id: str) -> MacroPlan | None:
@@ -112,27 +124,64 @@ def _cluster(points: list, costs: dict, *, max_packages: int,
             for group in groups]
 
 
+def _legacy_input_hash(input_data: dict) -> str:
+    """Hash anterior à introdução de ``planning_mode``, válido só para o modo estrito.
+
+    Propostas migradas guardam o hash calculado sem o modo. Reproduzi-lo permite
+    retomar o plano estrito existente em vez de criar um duplicado. Propostas por
+    coordenadas nunca usam este caminho, então o rascunho não é confundido com o
+    plano estrito.
+    """
+    legacy = {key: value for key, value in input_data.items() if key != "planning_mode"}
+    return sha256(json.dumps(legacy, sort_keys=True).encode()).hexdigest()
+
+
 def create_macro_plan(session: Session, *, route_id: str, matrix_id: str,
                       provider, max_packages: int, max_pairwise_m: float,
-                      max_base_roundtrip_m: float) -> tuple[MacroPlan, bool]:
+                      max_base_roundtrip_m: float,
+                      planning_mode: str = "strict") -> tuple[MacroPlan, bool]:
+    if planning_mode not in PLANNING_MODES:
+        raise MacroPlanError(f"Modo de planejamento desconhecido: {planning_mode}.")
     matrix = session.get(WalkingMatrix, matrix_id)
     if matrix is None or matrix.route_id != route_id:
         raise MacroPlanError("Matriz pedestre não encontrada nesta rota.")
     if matrix.quality != "network" or not matrix.input_snapshot:
         raise MacroPlanError("A etapa 4 exige matriz de rede com snapshot auditável.")
     points = list_delivery_points(session, route_id)
-    if not points or any(point.review_status not in ("confirmed", "corrected") for point in points):
+    if not points:
+        raise MacroPlanError("A rota não possui pontos de entrega para planejar.")
+    rejected = [point.id for point in points if point.review_status == "rejected"]
+    if rejected:
+        raise MacroPlanError(
+            f"A rota possui {len(rejected)} ponto(s) rejeitado(s); corrija-os antes de planejar."
+        )
+    invalid = [point.id for point in points if not _coordinates_are_valid(point)]
+    if invalid:
+        raise MacroPlanError(
+            f"A rota possui {len(invalid)} ponto(s) com coordenadas efetivas inválidas."
+        )
+    if planning_mode == "strict" and any(
+        point.review_status not in ("confirmed", "corrected") for point in points
+    ):
         raise MacroPlanError("Confirme ou corrija todos os pontos antes de planejar.")
     if matrix_is_stale(session, matrix, provider):
         raise MacroPlanError("A matriz está desatualizada. Calcule uma matriz pedestre atual.")
     input_data = {"algorithm": ALGORITHM_VERSION, "matrix_id": matrix.id,
                   "matrix_input_hash": matrix.input_hash, "max_packages": max_packages,
                   "max_pairwise_m": max_pairwise_m,
-                  "max_base_roundtrip_m": max_base_roundtrip_m}
+                  "max_base_roundtrip_m": max_base_roundtrip_m,
+                  "planning_mode": planning_mode}
     input_hash = sha256(json.dumps(input_data, sort_keys=True).encode()).hexdigest()
+    # O modo entrou no hash; propostas estritas migradas usam o hash antigo.
+    legacy_hash = _legacy_input_hash(input_data) if planning_mode == "strict" else None
     existing = session.scalar(select(MacroPlan).where(
         MacroPlan.route_id == route_id, MacroPlan.input_hash == input_hash
     ))
+    if existing is None and legacy_hash is not None:
+        existing = session.scalar(select(MacroPlan).where(
+            MacroPlan.route_id == route_id, MacroPlan.input_hash == legacy_hash,
+            MacroPlan.planning_mode == "strict",
+        ))
     if existing:
         return get_macro_plan(session, existing.id), True
 
@@ -154,7 +203,8 @@ def create_macro_plan(session: Session, *, route_id: str, matrix_id: str,
     if matrix_is_stale(session, matrix, provider):
         raise MacroPlanError("A matriz mudou durante o planejamento. Gere a proposta novamente.")
     plan = MacroPlan(id=new_uuid(), route_id=route_id, walking_matrix_id=matrix_id,
-                     input_hash=input_hash, max_packages=max_packages,
+                     input_hash=input_hash, planning_mode=planning_mode,
+                     max_packages=max_packages,
                      max_pairwise_m=max_pairwise_m,
                      max_base_roundtrip_m=max_base_roundtrip_m)
     session.add(plan)
@@ -193,6 +243,30 @@ def review_macro_stop(session: Session, stop_id: str, *, review_status: str,
     return stop
 
 
+def _review_counts(plan: MacroPlan, points: dict) -> tuple[int, int, str]:
+    """Conta as revisões da entrada imutável que originou a proposta.
+
+    O snapshot ``input_snapshot['points']`` registra ``review_status`` no momento
+    em que a matriz foi calculada. É essa a entrada da proposta: usar o estado
+    atual faria a proposta stale exibir contagens diferentes das que a criaram.
+    Propostas legadas sem snapshot caem no estado atual com sinalização
+    explícita e continuam ``stale`` por ``matrix_is_stale``.
+    """
+    matrix = plan.walking_matrix
+    snapshot = matrix.input_snapshot if matrix is not None else None
+    snapshot_points = snapshot.get("points") if isinstance(snapshot, dict) else None
+    if snapshot_points and all(
+        isinstance(entry, dict) and "review_status" in entry for entry in snapshot_points
+    ):
+        pending = sum(1 for entry in snapshot_points if entry["review_status"] == "pending")
+        reviewed = sum(1 for entry in snapshot_points
+                       if entry["review_status"] in ("confirmed", "corrected"))
+        return pending, reviewed, "plan_input_snapshot"
+    pending = sum(1 for point in points.values() if point.review_status == "pending")
+    reviewed = sum(1 for point in points.values() if point.review_status in ("confirmed", "corrected"))
+    return pending, reviewed, "legacy_current_points"
+
+
 def macro_plan_response(session: Session, plan: MacroPlan, provider, *, idempotent=False) -> dict:
     route = get_route(session, plan.route_id)
     points = {point.id: point for point in list_delivery_points(session, plan.route_id)}
@@ -227,10 +301,34 @@ def macro_plan_response(session: Session, plan: MacroPlan, provider, *, idempote
                       "review_status": stop.review_status, "review_note": stop.review_note,
                       "reviewed_at": stop.reviewed_at})
     covered = [a.delivery_point_id for stop in plan.stops for a in stop.assignments]
+    pending, reviewed, review_counts_basis = _review_counts(plan, points)
+    provisional = plan.planning_mode == "coordinate_preview"
+    if provisional:
+        review_notice = (
+            f"Rascunho não homologado: {pending} entrada(s) pendente(s) na entrada "
+            "da proposta foram agrupadas pelas coordenadas efetivas. Nenhum status "
+            "de revisão foi alterado; portões, travessias, estacionamento e "
+            "capacidade da bag seguem sem validação física."
+        )
+    else:
+        review_notice = (
+            "Proposta no modo estrito: as entradas da proposta estavam confirmadas "
+            "ou corrigidas. Portões, travessias, estacionamento e capacidade da bag "
+            "seguem sem validação física."
+        )
+    if review_counts_basis == "legacy_current_points":
+        review_notice += (
+            " Sem snapshot de entrada: as contagens usam o estado atual dos pontos "
+            "e a proposta permanece desatualizada."
+        )
     return {"id": plan.id, "route_id": plan.route_id, "walking_matrix_id": plan.walking_matrix_id,
             "input_hash": plan.input_hash, "created_at": plan.created_at,
             "stale": matrix_is_stale(session, plan.walking_matrix, provider),
-            "idempotent": idempotent, "max_packages": plan.max_packages,
+            "idempotent": idempotent, "planning_mode": plan.planning_mode,
+            "provisional_draft": provisional, "pending_point_count": pending,
+            "reviewed_point_count": reviewed, "review_counts_basis": review_counts_basis,
+            "review_notice": review_notice,
+            "max_packages": plan.max_packages,
             "max_pairwise_m": plan.max_pairwise_m,
             "max_base_roundtrip_m": plan.max_base_roundtrip_m,
             "package_count": sum(stop.package_count for stop in plan.stops),

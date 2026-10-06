@@ -75,12 +75,27 @@ function renderPoints() {
 }
 function fitPoints() { if (map && points.length) map.fitBounds(points.map(p => [p.effective_latitude, p.effective_longitude]), {padding: [35, 35], maxZoom: 17}); }
 function updateAvailability() {
-  $("compute").disabled = busy || !routeId || !points.length || points.some(p => !["confirmed", "corrected"].includes(p.review_status)) || points.length > (provider?.max_matrix_points || 200);
+  const limit = provider?.max_matrix_points || 200;
+  const pending = points.filter(p => p.review_status === "pending").length;
+  const rejected = points.filter(p => p.review_status === "rejected").length;
+  const allReviewed = points.length > 0 && pending === 0 && rejected === 0;
+  const allowUnreviewed = $("allow-unreviewed").checked;
+  const overLimit = points.length > limit;
+  const canCompute = allReviewed || (allowUnreviewed && !rejected);
+  $("compute").disabled = busy || !routeId || !points.length || overLimit || !canCompute;
   $("latitude").disabled = busy || $("review-status").value !== "corrected";
   $("longitude").disabled = $("latitude").disabled;
-  $("matrix-help").textContent = points.length > (provider?.max_matrix_points || 200) ? "Quantidade de entradas acima do limite da matriz." : $("compute").disabled ? "Confirme ou corrija todas as entradas antes do cálculo." : "Entradas revisadas. A matriz calcula os custos entre pares; o planejamento do circuito será feito na próxima etapa.";
-  $("create-macro").disabled = busy || !routeId || !networkMatrices.length || !$("macro-matrix").value || points.some(p => !["confirmed", "corrected"].includes(p.review_status));
-  $("macro-help").textContent = networkMatrices.length ? "O agrupamento respeita os limites informados e preserva cada pacote. Revise cada proposta antes de usá-la." : "É necessária uma matriz pedestre de rede atual. A estimativa em linha reta não serve para planejar.";
+  $("matrix-help").textContent = overLimit ? "Quantidade de entradas acima do limite da matriz."
+    : $("compute").disabled ? (rejected ? "Há entradas rejeitadas; corrija-as antes de calcular." : "Confirme ou corrija todas as entradas, ou marque a matriz provisória, antes do cálculo.")
+    : allReviewed ? "Entradas revisadas. A matriz calcula os custos entre pares; o planejamento do circuito será feito na próxima etapa."
+    : `Matriz provisória: ${pending} entrada(s) pendente(s). Serve de diagnóstico e não confirma portões nem travessias.`;
+  const previewMode = $("macro-mode").value === "coordinate_preview";
+  const macroBlocked = previewMode ? rejected > 0 : !allReviewed;
+  $("create-macro").disabled = busy || !routeId || !networkMatrices.length || !$("macro-matrix").value || macroBlocked;
+  $("macro-help").textContent = !networkMatrices.length ? "É necessária uma matriz pedestre de rede atual. A estimativa em linha reta não serve para planejar."
+    : previewMode ? "O modo por coordenadas aceita entradas pendentes e gera rascunho não homologado; ele não altera o status de revisão."
+    : "O modo estrito exige todas as entradas confirmadas ou corrigidas. O agrupamento respeita os limites e preserva cada pacote.";
+  $("macro-pending").textContent = points.length ? `${pending} entrada(s) pendente(s) · ${rejected} rejeitada(s). O endereço é apoio de busca e apresentação; o agrupamento usa as coordenadas efetivas.` : "";
 }
 async function loadHistory(pointId) {
   try {
@@ -122,18 +137,19 @@ async function loadRoutes(preferred = routeId) {
   $("routes").value = routes.some(r => r.id === preferred) ? preferred : routes[0]?.id || "";
   await loadRoute($("routes").value);
 }
+function matrixReviewPending(matrix) { return (matrix.input_snapshot?.points || []).some(point => point.review_status === "pending"); }
 async function loadMatrices() {
   const matrices = await request(`/api/v1/routes/${routeId}/walking-matrices`);
   const priorMatrix = $("macro-matrix").value;
   networkMatrices = matrices.filter(matrix => matrix.quality === "network" && !matrix.stale);
   $("macro-matrix").replaceChildren();
-  networkMatrices.forEach(matrix => { const option = make("option", `${matrix.provider} · ${new Date(matrix.created_at).toLocaleString("pt-BR")} · ${matrix.point_count} entradas`); option.value = matrix.id; $("macro-matrix").append(option); });
+  networkMatrices.forEach(matrix => { const option = make("option", `${matrix.provider} · ${new Date(matrix.created_at).toLocaleString("pt-BR")} · ${matrix.point_count} entradas${matrixReviewPending(matrix) ? " · provisória" : ""}`); option.value = matrix.id; $("macro-matrix").append(option); });
   if (networkMatrices.some(matrix => matrix.id === priorMatrix)) $("macro-matrix").value = priorMatrix;
   $("matrices").replaceChildren();
   if (!matrices.length) { const tr = document.createElement("tr"), td = make("td", "Nenhuma matriz calculada para esta rota."); td.colSpan = 6; tr.append(td); $("matrices").append(tr); }
   matrices.forEach(matrix => {
     const tr = document.createElement("tr");
-    [new Date(matrix.created_at).toLocaleString("pt-BR"), matrix.quality === "estimate_only" ? "Estimativa em linha reta" : matrix.provider + " · rede", matrix.point_count, matrix.unreachable_pairs, matrix.stale ? "Desatualizada" : "Atual"].forEach(value => tr.append(make("td", String(value))));
+    [new Date(matrix.created_at).toLocaleString("pt-BR"), matrix.quality === "estimate_only" ? "Estimativa em linha reta" : matrix.provider + " · rede", matrix.point_count, matrix.unreachable_pairs, matrix.stale ? "Desatualizada" : matrixReviewPending(matrix) ? "Atual · provisória" : "Atual"].forEach(value => tr.append(make("td", String(value))));
     const td = document.createElement("td"), button = make("button", "Ver pares", "secondary");
     button.onclick = () => action(async () => { matrixId = matrix.id; entriesOffset = 0; $("entries").replaceChildren(); $("matrix-detail").hidden = false; $("matrix-detail-summary").textContent = matrix.stale ? "Matriz histórica: calculada com uma revisão ou configuração anterior." : matrix.quality === "estimate_only" ? "Estimativa: não identifica barreiras ou acessos reais." : "Custos da rede pedestre configurada."; await loadEntries(); });
     td.append(button); tr.append(td); $("matrices").append(tr);
@@ -146,7 +162,7 @@ async function loadMacroPlans() {
   $("macro-history").replaceChildren();
   if (!plans.length) { $("macro-history").append(make("p", "Nenhuma proposta criada para esta rota.")); $("macro-detail").replaceChildren(); return; }
   plans.forEach(plan => {
-    const button = make("button", `${new Date(plan.created_at).toLocaleString("pt-BR")} · ${plan.macro_stop_count} macro-paradas (${plan.multi_address_stop_count} com caminhada candidata) · ${plan.stale ? "desatualizada" : "atual"}`, "secondary");
+    const button = make("button", `${new Date(plan.created_at).toLocaleString("pt-BR")} · ${plan.macro_stop_count} macro-paradas (${plan.multi_address_stop_count} com caminhada candidata) · ${plan.provisional_draft ? "rascunho por coordenadas" : "estrito"} · ${plan.stale ? "desatualizada" : "atual"}`, "secondary");
     button.type = "button"; button.onclick = () => { macroPlanId = plan.id; renderMacroPlan(plan); };
     $("macro-history").append(button);
   });
@@ -155,9 +171,10 @@ async function loadMacroPlans() {
 }
 function renderMacroPlan(plan) {
   const detail = $("macro-detail"); detail.replaceChildren();
-  const title = make("h3", `Proposta: ${plan.macro_stop_count} macro-paradas para ${plan.package_count} pacotes`);
+  const modeLabel = plan.planning_mode === "coordinate_preview" ? "por coordenadas · rascunho não homologado" : "estrito";
+  const title = make("h3", `Proposta (${modeLabel}): ${plan.macro_stop_count} macro-paradas para ${plan.package_count} pacotes`);
   const summary = make("p", `${plan.exact_coverage ? "Cobertura exata" : "Cobertura inconsistente"} · ${plan.original_stop_count} paradas originais · ${plan.packages_without_original_stop} pacote(s) sem parada original · ${plan.original_stops_split} parada(s) originais divididas${plan.stale ? " · DESATUALIZADA" : ""}.`);
-  detail.append(title, summary, make("p", plan.distance_comparison_note));
+  detail.append(title, summary, make("p", plan.review_notice, plan.provisional_draft ? "warning" : ""), make("p", plan.distance_comparison_note));
   detail.append(make("p", `${plan.multi_address_stop_count} agrupamento(s) com caminhada candidata, incluindo ${plan.cross_street_stop_count} entre ruas diferentes e ${plan.packages_in_multi_address_stops} pacote(s). ${plan.single_address_stop_count} parada(s) individuais. O veículo se desloca entre macro-paradas; só a rede pedestre e a revisão de campo confirmam o trecho a pé.`));
   plan.stops.forEach(stop => {
     const card = document.createElement("article"); card.className = "macro-stop";
@@ -202,19 +219,23 @@ $("review-form").onsubmit = event => { event.preventDefault(); action(async () =
   const point = await request(`/api/v1/delivery-points/${selected.id}/review`, {method: "PATCH", headers: {"Content-Type": "application/json"}, body: JSON.stringify(command)});
   points = points.map(p => p.id === point.id ? point : p); selectPoint(point); await loadMatrices(); $("matrix-detail").hidden = true; notice("Revisão salva. O histórico e o estado das matrizes foram atualizados.");
 }); };
-$("compute").onclick = () => action(async () => { notice("Calculando matriz…"); const matrix = await post(`/api/v1/routes/${routeId}/walking-matrices`, {}); await loadMatrices(); notice(matrix.quality === "estimate_only" ? "Estimativa salva. Para validar acessos reais, configure o serviço pedestre." : `Matriz salva: ${matrix.unreachable_pairs} pares sem caminho.`); });
+$("compute").onclick = () => action(async () => { notice("Calculando matriz…"); const provisional = $("allow-unreviewed").checked; const matrix = await post(`/api/v1/routes/${routeId}/walking-matrices`, {allow_unreviewed: provisional}); await loadMatrices(); notice(matrix.quality === "estimate_only" ? "Estimativa salva. Para validar acessos reais, configure o serviço pedestre." : `${provisional ? "Matriz provisória salva" : "Matriz salva"}: ${matrix.unreachable_pairs} pares sem caminho.${provisional ? " Ela não confirma portões nem travessias." : ""}`); });
 $("more-entries").onclick = () => action(loadEntries);
 $("macro-form").onsubmit = event => { event.preventDefault(); action(async () => {
-  notice("Gerando proposta de macro-paradas…");
+  const planningMode = $("macro-mode").value;
+  notice(planningMode === "coordinate_preview" ? "Gerando rascunho por coordenadas…" : "Gerando proposta de macro-paradas…");
   const plan = await post(`/api/v1/routes/${routeId}/macro-plans`, {
     walking_matrix_id: $("macro-matrix").value,
+    planning_mode: planningMode,
     max_packages: Number($("macro-capacity").value),
     max_pairwise_m: Number($("macro-pairwise").value),
     max_base_roundtrip_m: Number($("macro-roundtrip").value),
   });
   macroPlanId = plan.id; await loadMacroPlans();
-  notice(`${plan.macro_stop_count} macro-paradas propostas para ${plan.package_count} pacotes. Confira agrupamentos e vagas antes do uso.`);
+  notice(`${plan.macro_stop_count} macro-paradas propostas para ${plan.package_count} pacotes.${plan.provisional_draft ? ` Rascunho por coordenadas: ${plan.pending_point_count} entrada(s) pendente(s), sem homologação.` : ""} Confira agrupamentos e vagas antes do uso.`);
 }); };
+$("macro-mode").onchange = updateAvailability;
+$("allow-unreviewed").onchange = updateAvailability;
 window.addEventListener("beforeunload", event => { if (dirty) { event.preventDefault(); event.returnValue = ""; } });
 initializeMap();
 action(async () => { provider = await request("/api/v1/maps/config"); $("provider").textContent = provider.quality === "estimate_only" ? "Modo de desenvolvimento · estimativa em linha reta. Barreiras e acessos reais não são considerados." : `Rede pedestre · ${provider.provider} · perfil ${provider.profile}`; await loadRoutes(); notice(routeId ? "Rota carregada. Selecione um endereço para conferir a entrada." : "Importe uma planilha .xlsx para iniciar a revisão."); });

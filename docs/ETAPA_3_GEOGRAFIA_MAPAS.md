@@ -17,6 +17,8 @@ Uma matriz pedestre registra todos os pares origem/destino, inclusive a diagonal
 
 Uma correção exige latitude e longitude. Confirmar ou rejeitar não aceita novas coordenadas. A confirmação em lote altera somente pontos pendentes, portanto não apaga correções nem rejeições anteriores.
 
+A partir de 06/10/2026, uma matriz de rede calculada com `allow_unreviewed=true` pode alimentar o modo explícito `coordinate_preview` da etapa 4, que agrupa pelas coordenadas efetivas e marca a proposta como rascunho não homologado. O modo `strict` (padrão) continua exigindo todos os pontos confirmados ou corrigidos.
+
 ## Escolha do provedor
 
 O backend usa a interface `WalkingMatrixProvider`. A primeira integração de rede é OSRM e o modo local padrão é `straight_line`.
@@ -132,7 +134,7 @@ Novos endpoints de consulta:
 - `GET /api/v1/delivery-points/{id}/reviews?limit=50&offset=0`: histórico paginado.
 - `GET /api/v1/routes/{id}/walking-matrices?limit=20&offset=0`: histórico de matrizes.
 
-`input_snapshot` guarda as coordenadas, IDs, estados e revisões usados no cálculo. `stale=true` indica mudança nos pontos ou na configuração do provedor. Uma matriz legada sem snapshot também é desatualizada. O consumidor da etapa 4 deverá exigir `stale=false`, qualidade `network` e revisão dos pontos; a consulta de uma matriz histórica permanece permitida para auditoria.
+`input_snapshot` guarda as coordenadas, IDs, estados e revisões usados no cálculo. `stale=true` indica mudança nos pontos ou na configuração do provedor. Uma matriz legada sem snapshot também é desatualizada. O consumidor da etapa 4 exige `stale=false` e qualidade `network`; o modo `strict` exige também a revisão dos pontos, e o modo explícito `coordinate_preview` dispensa apenas os `pending`. A consulta de uma matriz histórica permanece permitida para auditoria.
 
 ## Preparar OSRM e verificar a região
 
@@ -180,7 +182,7 @@ Em outro terminal, configure `MAP_PROVIDER=osrm`, `OSRM_DATASET_REVISION` com `c
 
 Como complemento de evidência, `scripts/osm_evidence.py --output outputs/evidencia-osm.json` cruza cada ponto com o recorte local (`data/osrm-walking/map.osm.pbf`): vias nomeadas próximas e números de porta (`addr:housenumber`) do OSM, sem depender de serviços externos e sem alterar revisões. Ajuda a distinguir “coordenada compatível com a rua” de “coordenada em trecho numérico diferente” (ex.: número 2343 de uma avenida numa coordenada do trecho 1300), mas continua não comprovando portão ou travessia.
 
-Se houver pontos `pending`, a matriz de rede pode ser calculada como **diagnóstico provisório** com `scripts/validate_walking.py ID_DA_ROTA --provisional --output outputs/matriz-provisoria.json`. O relatório explicita `review_mode=provisional`. A etapa 4 continua recusando pontos pendentes mesmo que a matriz exista; a aceitação final exige revisão das entradas e conferência operacional de portões, barreiras e travessias.
+Se houver pontos `pending`, a matriz de rede pode ser calculada como **diagnóstico provisório** com `scripts/validate_walking.py ID_DA_ROTA --provisional --output outputs/matriz-provisoria.json`. O relatório explicita `review_mode=provisional`. A etapa 4 recusa pontos pendentes no modo padrão `strict`; o modo explícito `coordinate_preview` aceita a matriz provisória, mas produz um rascunho não homologado e não altera nenhuma revisão. A aceitação final exige revisão das entradas e conferência operacional de portões, barreiras e travessias.
 
 ## Verificações desta continuação
 
