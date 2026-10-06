@@ -176,6 +176,17 @@ function renderMacroPlan(plan) {
   const summary = make("p", `${plan.exact_coverage ? "Cobertura exata" : "Cobertura inconsistente"} · ${plan.original_stop_count} paradas originais · ${plan.packages_without_original_stop} pacote(s) sem parada original · ${plan.original_stops_split} parada(s) originais divididas${plan.stale ? " · DESATUALIZADA" : ""}.`);
   detail.append(title, summary, make("p", plan.review_notice, plan.provisional_draft ? "warning" : ""), make("p", plan.distance_comparison_note));
   detail.append(make("p", `${plan.multi_address_stop_count} agrupamento(s) com caminhada candidata, incluindo ${plan.cross_street_stop_count} entre ruas diferentes e ${plan.packages_in_multi_address_stops} pacote(s). ${plan.single_address_stop_count} parada(s) individuais. O veículo se desloca entre macro-paradas; só a rede pedestre e a revisão de campo confirmam o trecho a pé.`));
+  const circuitBox = document.createElement("section"); circuitBox.className = "circuit-panel";
+  const circuitButton = make("button", plan.stale ? "Circuitos indisponíveis: proposta desatualizada" : "Calcular circuitos pedestres fechados", "secondary");
+  circuitButton.type = "button"; circuitButton.disabled = plan.stale;
+  circuitButton.onclick = () => action(async () => {
+    notice("Calculando circuitos pedestres sob demanda…");
+    const circuits = await request(`/api/v1/macro-plans/${plan.id}/circuits`);
+    renderCircuits(circuitBox, circuits);
+    notice(`Circuitos calculados a partir da matriz persistida: ${circuits.circuit_count} circuito(s), ${Math.round(circuits.total_distance_m)} m dirigidos. A base é candidata e não homologada.`);
+  });
+  circuitBox.append(circuitButton);
+  detail.append(circuitBox);
   plan.stops.forEach(stop => {
     const card = document.createElement("article"); card.className = "macro-stop";
     card.append(make("h3", `Macro-parada ${stop.ordinal} · ${stop.package_count} pacote(s)`));
@@ -197,6 +208,30 @@ function renderMacroPlan(plan) {
     }
     detail.append(card);
   });
+}
+function pointAddress(pointId) { return points.find(point => point.id === pointId)?.original_address || pointId; }
+function renderCircuits(container, data) {
+  container.replaceChildren();
+  container.append(make("h3", `Circuitos fechados (etapa 5) · ${data.circuit_count} macro-parada(s)`));
+  container.append(make("p", `${data.exact_circuit_count} exato(s) · ${data.heuristic_circuit_count} heurístico(s) não ótimo(s) · ${Math.round(data.total_distance_m)} m dirigidos · ${Math.round(data.total_duration_s)} s de caminhada acumulada. Ordem: distância dirigida; desempate por duração e sequência canônica.`));
+  container.append(make("p", `Limite de ida e volta à base (parâmetro da etapa 4): ${Math.round(data.max_base_roundtrip_m)} m por endereço. ${data.base_roundtrip_limit_notice}`));
+  if (data.circuits_exceeding_base_roundtrip) container.append(make("p", `${data.circuits_exceeding_base_roundtrip} circuito(s) com distância total acima desse parâmetro; isso não bloqueia nem altera o agrupamento.`, "warning"));
+  container.append(make("p", data.draft_notice, data.provisional_draft ? "warning" : ""));
+  container.append(make("p", data.gps_notice, "warning"));
+  data.circuits.forEach(circuit => {
+    const card = document.createElement("article"); card.className = "macro-stop";
+    card.append(make("h3", `Circuito da macro-parada ${circuit.ordinal} · ${circuit.package_count} pacote(s)`));
+    card.append(make("p", `${Math.round(circuit.distance_m)} m dirigidos · ${Math.round(circuit.duration_s)} s acumulados · ${circuit.optimal ? "solução exata" : `heurística determinística não ótima (${circuit.solution_method})`}.`));
+    card.append(make("p", `Base candidata: ${pointAddress(circuit.candidate_base_point_id)} · estacionamento não verificado.`));
+    if (circuit.exceeds_base_roundtrip_limit) card.append(make("p", circuit.roundtrip_warning, "warning"));
+    const list = document.createElement("ol");
+    circuit.sequence_point_ids.forEach((pointId, index) => list.append(make("li", `${pointAddress(pointId)}${index === 0 ? " (partida)" : ""}`)));
+    list.append(make("li", `${pointAddress(circuit.candidate_base_point_id)} (retorno à base)`));
+    card.append(list);
+    container.append(card);
+  });
+  container.append(make("p", data.capability_notice, "warning"));
+  if (data.heuristic_circuit_count) container.append(make("p", data.heuristic_notice, "warning"));
 }
 async function loadEntries() {
   const entries = await request(`/api/v1/walking-matrices/${matrixId}/entries?limit=100&offset=${entriesOffset}`);

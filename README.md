@@ -2,9 +2,9 @@
 
 Assistente de entregas last-mile: planejar onde estacionar, quais pacotes levar e como fazer o circuito a pé até voltar ao carro.
 
-**Estado: etapa 4 implementada como proposta revisável; homologação regional pendente.** A aplicação importa o XLSX, preserva endereços e coordenadas originais, permite confirmar ou corrigir pontos, persiste matrizes pedestres auditáveis e agrupa pontos em macro-paradas com limites configuráveis. O modo estrito continua sendo o padrão; um modo explícito por coordenadas efetivas gera rascunhos não homologados quando há pontos pendentes. O adaptador OSRM está implementado; sem cobertura pedestre validada da região, nenhuma proposta deve ser usada em operação.
+**Estado: etapa 4 implementada como proposta revisável; etapa 5 iniciada pelos circuitos pedestres fechados (rascunho); homologação regional pendente.** A aplicação importa o XLSX, preserva endereços e coordenadas originais, permite confirmar ou corrigir pontos, persiste matrizes pedestres auditáveis e agrupa pontos em macro-paradas com limites configuráveis. O modo estrito continua sendo o padrão; um modo explícito por coordenadas efetivas gera rascunhos não homologados quando há pontos pendentes. Sobre uma proposta, a API calcula sob demanda o circuito pedestre fechado de cada macro-parada — sequência de pontos, sem geometria, manobras, voz ou estacionamento confirmado. O adaptador OSRM está implementado; sem cobertura pedestre validada da região, nenhuma proposta deve ser usada em operação.
 
-O painel está na página inicial da API: **http://127.0.0.1:8000/**. Nele é possível importar a planilha, buscar endereços, selecionar pontos no mapa, corrigir entradas, consultar o histórico, calcular matrizes e gerar/revisar propostas de macro-paradas. Matrizes e propostas de revisões anteriores aparecem como desatualizadas.
+O painel está na página inicial da API: **http://127.0.0.1:8000/**. Nele é possível importar a planilha, buscar endereços, selecionar pontos no mapa, corrigir entradas, consultar o histórico, calcular matrizes, gerar/revisar propostas de macro-paradas e calcular os circuitos pedestres fechados de uma proposta. Matrizes e propostas de revisões anteriores aparecem como desatualizadas.
 
 Para experimentar com três endereços fictícios, em um banco separado:
 
@@ -46,6 +46,8 @@ O provedor padrão `straight_line` serve para testes locais e identifica a matri
 
 Para gerar macro-paradas, confirme ou corrija todos os pontos e calcule uma matriz `network` atual. O padrão provisório é 8 pacotes por saída da bag; os limites de caminhada podem ser ajustados na tela. A base calculada não é um estacionamento confirmado. Quando a conferência manual for lenta demais, o painel oferece o modo explícito **Por coordenadas**, que agrupa pelas coordenadas efetivas mesmo com entradas pendentes e marca a proposta como rascunho não homologado. Consulte [a etapa 4](docs/ETAPA_4_MACRO_PARADAS.md).
 
+Sobre uma proposta já criada, o botão **Calcular circuitos pedestres fechados** devolve, por macro-parada, a sequência que parte da base candidata, visita cada ponto uma vez e retorna. O cálculo é determinístico e usa só a matriz pedestre persistida: grupos de até 9 pontos têm solução exata e grupos maiores usam heurística marcada como não ótima. O limite de 600 m da etapa 4 vale **por ida e volta individual** à base, não para a volta completa; quando a distância do circuito supera esse parâmetro, a API, o painel e o relatório agregado exibem o aviso sem bloquear o agrupamento. É um rascunho de sequência de pontos — sem geometria, manobras, voz ou estacionamento confirmado — e a partida real deve usar o GPS confirmado do veículo. Consulte [a etapa 5](docs/ETAPA_5_CIRCUITOS_PEDESTRES.md).
+
 ## Iniciar com PostgreSQL/PostGIS
 
 Com Docker disponível:
@@ -75,6 +77,7 @@ O resumo do terminal contém apenas contagens. O JSON contém endereços, coorde
 - [API e persistência](docs/ETAPA_2_API.md)
 - [Revisão geográfica e mapas](docs/ETAPA_3_GEOGRAFIA_MAPAS.md)
 - [Macro-paradas](docs/ETAPA_4_MACRO_PARADAS.md)
+- [Circuitos pedestres fechados (etapa 5, rascunho)](docs/ETAPA_5_CIRCUITOS_PEDESTRES.md)
 - [Arquitetura e modelo de dados planejados](docs/ARQUITETURA.md)
 - [Retomada das etapas 4 e 5 em novo chat](docs/CONTINUACAO_ETAPAS_4_5.md)
 

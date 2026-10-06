@@ -24,6 +24,41 @@ class InvalidMatrixResult(RuntimeError):
     pass
 
 
+class MatrixCostsInvalid(ValueError):
+    """A matriz persistida não descreve custos dirigidos válidos e completos."""
+
+
+def directed_matrix_costs(matrix, points: list, entries: list) -> dict:
+    """Valida e devolve ``{(origem, destino): (distância_m, duração_s) | None}``.
+
+    ``None`` marca um par dirigido sem caminho. A função recusa dimensões
+    incorretas, pares duplicados, pontos de outra rota, custos inválidos e
+    células inacessíveis inconsistentes. É a única leitura de custos usada pela
+    etapa 4 (distância) e pelos circuitos da etapa 5 (distância e duração).
+    """
+    ids = {point.id for point in points}
+    if matrix.point_count != len(ids) or len(entries) != len(ids) ** 2:
+        raise MatrixCostsInvalid("A matriz não cobre todos os pares da rota.")
+    costs = {}
+    for entry in entries:
+        key = (entry.origin_delivery_point_id, entry.destination_delivery_point_id)
+        if key in costs or key[0] not in ids or key[1] not in ids:
+            raise MatrixCostsInvalid("A matriz contém pares duplicados ou pontos de outra rota.")
+        if entry.reachable:
+            if (entry.distance_m is None or entry.duration_s is None
+                    or not isfinite(entry.distance_m) or not isfinite(entry.duration_s)
+                    or entry.distance_m < 0 or entry.duration_s < 0):
+                raise MatrixCostsInvalid("A matriz contém custos inválidos.")
+            costs[key] = (entry.distance_m, entry.duration_s)
+        else:
+            if entry.distance_m is not None or entry.duration_s is not None or not entry.error_code:
+                raise MatrixCostsInvalid("A matriz contém um par inacessível inconsistente.")
+            costs[key] = None
+    if len(costs) != len(ids) ** 2:
+        raise MatrixCostsInvalid("A matriz está incompleta.")
+    return costs
+
+
 def matrix_snapshot(points, provider: WalkingMatrixProvider) -> dict:
     return {
         "provider": provider.name,

@@ -217,3 +217,67 @@ class DeliveryPointReviewResponse(BaseModel):
     before: dict
     after: dict
     created_at: datetime
+
+
+class CircuitLegResponse(BaseModel):
+    origin_delivery_point_id: str
+    destination_delivery_point_id: str
+    distance_m: float
+    duration_s: float
+
+
+class MacroStopCircuitResponse(BaseModel):
+    stop_id: str
+    ordinal: int
+    candidate_base_point_id: str
+    base_status: Literal["unverified"]
+    delivery_point_ids: list[str]
+    sequence_point_ids: list[str]
+    closed: bool
+    point_count: int
+    package_count: int
+    distance_m: float
+    duration_s: float
+    solution_method: Literal["exact", "heuristic_nearest_neighbor_2opt"]
+    optimal: bool
+    max_base_roundtrip_m: float
+    exceeds_base_roundtrip_limit: bool
+    roundtrip_warning: str | None
+    legs: list[CircuitLegResponse]
+
+
+class MacroPlanCircuitsResponse(BaseModel):
+    plan_id: str
+    route_id: str
+    walking_matrix_id: str
+    matrix_quality: str
+    planning_mode: Literal["strict", "coordinate_preview"]
+    provisional_draft: bool
+    stale: bool
+    algorithm_version: int
+    order_rule: str
+    distance_basis: str
+    exact_point_limit: int
+    max_base_roundtrip_m: float
+    base_status: Literal["unverified"]
+    base_notice: str
+    base_roundtrip_limit_notice: str
+    gps_notice: str
+    capability_notice: str
+    heuristic_notice: str
+    draft_notice: str
+    geometry_available: bool
+    maneuvers_available: bool
+    voice_available: bool
+    circuit_count: int
+    exact_circuit_count: int
+    heuristic_circuit_count: int
+    all_circuits_exact: bool
+    circuits_exceeding_base_roundtrip: int
+    exact_coverage: bool
+    point_count: int
+    package_count: int
+    total_distance_m: float
+    total_duration_s: float
+    content_hash: str
+    circuits: list[MacroStopCircuitResponse]

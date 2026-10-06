@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 import uvicorn
 
 from .archive import validate_xlsx_archive
+from .circuit_service import CircuitError, build_macro_plan_circuits
 from .config import Settings
 from .database import create_database_engine, create_session_factory
 from .importer import ImportValidationError, import_workbook
@@ -50,6 +51,7 @@ from .schemas import (
     DeliveryPointReviewResponse,
     MacroPlanCreateRequest,
     MacroPlanResponse,
+    MacroPlanCircuitsResponse,
     MacroStopReviewRequest,
 )
 from .walking_service import (
@@ -111,8 +113,8 @@ def create_app(
 
     app = FastAPI(
         title="Jet Rápido API",
-        version="0.5.0",
-        description="Importação auditável, revisão geográfica, matrizes e rascunhos de macro-paradas.",
+        version="0.6.0",
+        description="Importação auditável, revisão geográfica, matrizes, macro-paradas e circuitos pedestres.",
     )
     app.state.settings = settings
     app.state.engine = engine
@@ -409,6 +411,25 @@ def create_app(
         if plan is None:
             raise HTTPException(status_code=404, detail="Proposta não encontrada.")
         return MacroPlanResponse.model_validate(macro_plan_response(session, plan, app.state.walking_provider))
+
+    @app.get(
+        "/api/v1/macro-plans/{plan_id}/circuits",
+        response_model=MacroPlanCircuitsResponse,
+        tags=["macro-paradas"],
+    )
+    def read_macro_plan_circuits(
+        plan_id: str,
+        session: Session = Depends(get_session),
+    ) -> MacroPlanCircuitsResponse:
+        """Circuito fechado e dirigido de cada macro-parada, calculado sob demanda."""
+        plan = get_macro_plan(session, plan_id)
+        if plan is None:
+            raise HTTPException(status_code=404, detail="Proposta não encontrada.")
+        try:
+            payload = build_macro_plan_circuits(session, plan, app.state.walking_provider)
+        except CircuitError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        return MacroPlanCircuitsResponse.model_validate(payload)
 
     @app.patch("/api/v1/macro-stops/{stop_id}/review", response_model=MacroPlanResponse, tags=["macro-paradas"])
     def review_stop(stop_id: str, command: MacroStopReviewRequest,

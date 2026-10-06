@@ -17,7 +17,7 @@ Manter uma etapa principal em andamento. Evitar trocar de stack sem necessidade 
 | 2 | API e persistência | Importar, consultar e revisar rota; mesma importação não duplica pacotes; migrações testadas | Implementada |
 | 3 | Revisão geográfica e mapas | Conferir entradas e coordenadas; matriz caminhável com inacessíveis explícitos | Software entregue; homologação de campo pendente |
 | 4 | Macro-paradas | Capacidade e caminhada limitadas; nenhum pacote perdido; comparação com original | Software de proposta entregue, com rascunho explícito por coordenadas; validação regional e estacionamento pendentes |
-| 5 | Ordem veicular e circuitos | Rota pedestre retorna ao carro; estacionamentos acessíveis; custos mensuráveis | Pendente |
+| 5 | Ordem veicular e circuitos | Rota pedestre retorna ao carro; estacionamentos acessíveis; custos mensuráveis | Parcial: circuitos pedestres fechados por macro-parada implementados como rascunho determinístico; ordem veicular e estacionamento pendentes |
 | 6 | Mobile operacional | Confirmar estacionamento, preparar bag e registrar entregas | Pendente |
 | 7 | Voz e offline | Testes em Android real com tela bloqueada, queda de rede e sincronização repetida | Pendente |
 | 8 | Piloto de campo | Medir tempo total, caminhada, estacionamentos e retornos evitáveis | Pendente |
@@ -130,3 +130,21 @@ Branch principal: main. O remoto público é `alexsandrors0312/jet_rapido`. Dado
 - Estado local: 49 `pending` (32 na rota de 22/09 e 17 na de 30/09); 3 `corrected` na de 22/09; matrizes de rede atuais `1aa1242e…` (35×35) e `a9498e40…` (17×17), 0 pares inacessíveis.
 - Limites inalterados e provisórios: 8 pacotes por saída da bag, 400 m entre entradas e 600 m de ida e volta à base. Estacionamento, portões, travessias e capacidade física seguem sem validação. Nenhuma economia de distância é declarada.
 - Próximo passo: validar a proposta por coordenadas e só então avaliar a etapa 5 (ordem veicular e circuitos).
+
+## Circuitos pedestres fechados — 06/10/2026
+
+- Primeiro incremento da etapa 5: `GET /api/v1/macro-plans/{plan_id}/circuits` calcula sob demanda o circuito fechado e dirigido de cada macro-parada, usando apenas a matriz pedestre persistida. Sem nova migração e sem persistência: o resultado é determinístico (`content_hash`).
+- A sequência parte da base candidata, visita cada ponto do grupo exatamente uma vez e retorna. Ordena por distância dirigida, com desempate por duração e sequência canônica (ordem da planilha e identificador); nenhum endereço textual ordena. Nenhum circuito atravessa par inacessível.
+- Grupos de até 9 pontos têm solução exata; acima disso há heurística determinística (vizinho mais próximo + 2-opt) marcada como não ótima e um limite explícito na resposta.
+- `coordinate_preview` continua aceito sem confirmar os pontos pendentes; nenhum status de revisão é alterado. A resposta marca `base_status=unverified`, avisa que a partida real deve usar GPS confirmado do veículo e declara ausência de geometria, manobras, voz e de promessa de economia.
+- Recusas: matriz `estimate_only`, sem snapshot, incompleta ou desatualizada, par obrigatório inacessível, ponto de outra rota e cobertura inconsistente (HTTP 409).
+- Novo `src/jet_rapido/circuit_service.py`, helper `directed_matrix_costs` compartilhado em `walking_service.py`, schemas e painel (botão "Calcular circuitos pedestres fechados"). Testes sintéticos em `tests/test_circuits.py`.
+- Relatório privado agregado (sem endereços ou coordenadas) das duas propostas locais em `outputs/circuitos-rascunho-20261006.md`; nenhum OSRM foi recalculado.
+- Continua fora desta chamada: ordem veicular entre macro-paradas (exige matriz veicular regional e ponto de partida/chegada configurável). Detalhes em `ETAPA_5_CIRCUITOS_PEDESTRES.md`.
+
+## Ajustes finais de segurança e leitura dos circuitos — 06/10/2026
+
+- `scripts/circuit_report.py` deixou de gravar a `--database-url` no relatório e no console. URLs PostgreSQL podem conter usuário e senha; o arquivo agora traz apenas um rótulo fixo ("URL de conexão omitida por segurança"). Os relatórios reais já existentes em `outputs/` foram preservados e nenhum endereço ou coordenada real entrou em arquivo versionado.
+- O parâmetro `max_base_roundtrip_m` (etapa 4) limita **cada ida e volta individual** à base, não a volta completa do circuito. A resposta de circuitos agora expõe `max_base_roundtrip_m`, `base_roundtrip_limit_notice`, `circuits_exceeding_base_roundtrip` e, por circuito, `exceeds_base_roundtrip_limit` e `roundtrip_warning`. O aviso aparece na API, no painel e no relatório agregado, sem bloquear nem alterar o agrupamento. O circuito real de 22/09 com ~1108 m ilustra o caso.
+- A mensagem de falha da heurística passou a dizer que o **método não encontrou** circuito e que a existência de caminho não foi descartada; a solução exata continua podendo afirmar a inexistência porque enumera todas as ordens. Os grupos atuais permanecem exatos e inalterados.
+- Testes: `tests/test_circuit_report.py` (novo) cobre a URL sintética com senha e o conteúdo agregado; `tests/test_circuits.py` cobre o aviso por circuito e a mensagem da heurística. Revisões de pontos, matrizes, propostas persistidas e os parâmetros 8/400/600 não foram alterados.

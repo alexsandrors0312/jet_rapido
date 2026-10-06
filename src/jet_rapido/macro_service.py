@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from .models import MacroPlan, MacroStop, MacroStopPoint, WalkingMatrix, WalkingMatrixEntry, new_uuid, utc_now
 from .repository import get_route, list_delivery_points
-from .walking_service import matrix_is_stale
+from .walking_service import MatrixCostsInvalid, directed_matrix_costs, matrix_is_stale
 
 
 ALGORITHM_VERSION = 1
@@ -51,27 +51,12 @@ def list_macro_plans(session: Session, route_id: str, *, limit: int, offset: int
 
 
 def _matrix_costs(matrix: WalkingMatrix, points: list, entries: list[WalkingMatrixEntry]) -> dict:
-    ids = {point.id for point in points}
-    if matrix.point_count != len(ids) or len(entries) != len(ids) ** 2:
-        raise MacroPlanError("A matriz não cobre todos os pares da rota.")
-    costs = {}
-    for entry in entries:
-        key = (entry.origin_delivery_point_id, entry.destination_delivery_point_id)
-        if key in costs or key[0] not in ids or key[1] not in ids:
-            raise MacroPlanError("A matriz contém pares duplicados ou pontos de outra rota.")
-        if entry.reachable:
-            if (entry.distance_m is None or entry.duration_s is None
-                    or not isfinite(entry.distance_m) or not isfinite(entry.duration_s)
-                    or entry.distance_m < 0 or entry.duration_s < 0):
-                raise MacroPlanError("A matriz contém custos inválidos.")
-            costs[key] = entry.distance_m
-        else:
-            if entry.distance_m is not None or entry.duration_s is not None or not entry.error_code:
-                raise MacroPlanError("A matriz contém um par inacessível inconsistente.")
-            costs[key] = None
-    if len(costs) != len(ids) ** 2:
-        raise MacroPlanError("A matriz está incompleta.")
-    return costs
+    """Distância dirigida usada pelo agrupamento; delega a validação à etapa 5."""
+    try:
+        validated = directed_matrix_costs(matrix, points, entries)
+    except MatrixCostsInvalid as error:
+        raise MacroPlanError(str(error)) from error
+    return {key: None if value is None else value[0] for key, value in validated.items()}
 
 
 def _group_stats(group: tuple[str, ...], by_id: dict, costs: dict,
