@@ -2,9 +2,9 @@
 
 Assistente de entregas last-mile: planejar onde estacionar, quais pacotes levar e como fazer o circuito a pé até voltar ao carro.
 
-**Estado: etapa 4 implementada como proposta revisável; etapa 5 iniciada pelos circuitos pedestres fechados (rascunho); homologação regional pendente.** A aplicação importa o XLSX, preserva endereços e coordenadas originais, permite confirmar ou corrigir pontos, persiste matrizes pedestres auditáveis e agrupa pontos em macro-paradas com limites configuráveis. O modo estrito continua sendo o padrão; um modo explícito por coordenadas efetivas gera rascunhos não homologados quando há pontos pendentes. Sobre uma proposta, a API calcula sob demanda o circuito pedestre fechado de cada macro-parada — sequência de pontos, sem geometria, manobras, voz ou estacionamento confirmado. O adaptador OSRM está implementado; sem cobertura pedestre validada da região, nenhuma proposta deve ser usada em operação.
+**Estado: etapa 4 implementada como proposta revisável; etapa 5 iniciada com circuitos pedestres fechados e ordem veicular aberta (rascunhos); homologação regional pendente.** A aplicação importa o XLSX, preserva endereços e coordenadas originais, permite confirmar ou corrigir pontos, persiste matrizes pedestres auditáveis e agrupa pontos em macro-paradas com limites configuráveis. O modo estrito continua sendo o padrão; um modo explícito por coordenadas efetivas gera rascunhos não homologados quando há pontos pendentes. Sobre uma proposta, a API calcula sob demanda o circuito pedestre fechado de cada macro-parada e a ordem veicular aberta das bases sobre uma matriz OSRM de perfil `car` própria — sequência de pontos, sem geometria, manobras, voz ou estacionamento confirmado. O adaptador OSRM está implementado; sem cobertura pedestre e veicular validada da região, nenhuma proposta deve ser usada em operação.
 
-O painel está na página inicial da API: **http://127.0.0.1:8000/**. Nele é possível importar a planilha, buscar endereços, selecionar pontos no mapa, corrigir entradas, consultar o histórico, calcular matrizes, gerar/revisar propostas de macro-paradas e calcular os circuitos pedestres fechados de uma proposta. Matrizes e propostas de revisões anteriores aparecem como desatualizadas.
+O painel está na página inicial da API: **http://127.0.0.1:8000/**. Nele é possível importar a planilha, buscar endereços, selecionar pontos no mapa, corrigir entradas, consultar o histórico, calcular matrizes, gerar/revisar propostas de macro-paradas, calcular os circuitos pedestres fechados e digitar a partida e a chegada para calcular a ordem veicular das bases. Matrizes e propostas de revisões anteriores aparecem como desatualizadas.
 
 Para experimentar com três endereços fictícios, em um banco separado:
 
@@ -48,6 +48,8 @@ Para gerar macro-paradas, confirme ou corrija todos os pontos e calcule uma matr
 
 Sobre uma proposta já criada, o botão **Calcular circuitos pedestres fechados** devolve, por macro-parada, a sequência que parte da base candidata, visita cada ponto uma vez e retorna. O cálculo é determinístico e usa só a matriz pedestre persistida: grupos de até 9 pontos têm solução exata e grupos maiores usam heurística marcada como não ótima. O limite de 600 m da etapa 4 vale **por ida e volta individual** à base, não para a volta completa; quando a distância do circuito supera esse parâmetro, a API, o painel e o relatório agregado exibem o aviso sem bloquear o agrupamento. É um rascunho de sequência de pontos — sem geometria, manobras, voz ou estacionamento confirmado — e a partida real deve usar o GPS confirmado do veículo. Consulte [a etapa 5](docs/ETAPA_5_CIRCUITOS_PEDESTRES.md).
 
+A seção **Ordem veicular** calcula a ordem aberta `partida → cada base candidata uma vez → chegada` sobre uma matriz dirigida OSRM de perfil **`car`** própria, com endpoint, revisão e raio configurados por `VEHICLE_*`. A matriz pedestre e a estimativa em linha reta não substituem a via; sem provedor veicular configurado a ordem é recusada. Distância dirigida é o critério primário, com duração da mesma sequência e ordem canônica como desempate; até 12 bases a solução é exata e acima disso a heurística é marcada como não ótima. O procedimento para preparar o recorte `car` regional está em [ETAPA_5_ORDEM_VEICULAR.md](docs/ETAPA_5_ORDEM_VEICULAR.md).
+
 ## Iniciar com PostgreSQL/PostGIS
 
 Com Docker disponível:
@@ -78,6 +80,7 @@ O resumo do terminal contém apenas contagens. O JSON contém endereços, coorde
 - [Revisão geográfica e mapas](docs/ETAPA_3_GEOGRAFIA_MAPAS.md)
 - [Macro-paradas](docs/ETAPA_4_MACRO_PARADAS.md)
 - [Circuitos pedestres fechados (etapa 5, rascunho)](docs/ETAPA_5_CIRCUITOS_PEDESTRES.md)
+- [Ordem veicular aberta (etapa 5, rascunho)](docs/ETAPA_5_ORDEM_VEICULAR.md)
 - [Arquitetura e modelo de dados planejados](docs/ARQUITETURA.md)
 - [Retomada das etapas 4 e 5 em novo chat](docs/CONTINUACAO_ETAPAS_4_5.md)
 

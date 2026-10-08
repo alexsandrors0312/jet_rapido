@@ -4,7 +4,7 @@
 
 Esta parte da etapa 5 calcula, **sob demanda**, o circuito pedestre **fechado e dirigido** de cada macro-parada já proposta. O circuito começa na base candidata (`candidate_base_point_id`), visita cada ponto de entrega do grupo exatamente uma vez e retorna à base. É um **rascunho de sequência de pontos**: não há geometria, instruções de manobra, voz nem estacionamento confirmado, e nenhuma economia operacional é prometida.
 
-A **ordem veicular entre macro-paradas não foi implementada**: ela exige uma matriz veicular regional e um ponto de partida e chegada configurável.
+A **ordem veicular entre macro-paradas** foi implementada como um incremento separado, sobre uma matriz dirigida OSRM de perfil `car` com partida e chegada configuráveis: consulte `ETAPA_5_ORDEM_VEICULAR.md`. Os circuitos abaixo continuam usando apenas a matriz pedestre desta proposta.
 
 ## Fonte de custo e ordenação
 
@@ -76,7 +76,7 @@ No detalhe de uma proposta, o botão **Calcular circuitos pedestres fechados** c
 - Portões, travessias, capacidade da bag e tempos de serviço seguem sem validação física.
 - O circuito é uma sequência de pontos sobre a matriz de custos: sem geometria, não há instruções de manobra nem navegação por voz.
 - Nenhuma economia de distância é declarada: a planilha não registra o percurso a pé nem o estacionamento original.
-- A ordem veicular entre macro-paradas depende de matriz veicular regional e de um ponto de partida e chegada configurável.
+- A ordem veicular entre macro-paradas é calculada em `ETAPA_5_ORDEM_VEICULAR.md`, sobre matriz `car` própria; ela também é um rascunho e não confirma estacionamento.
 
 ## Testes versionados
 

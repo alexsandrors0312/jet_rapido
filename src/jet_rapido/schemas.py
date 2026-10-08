@@ -281,3 +281,122 @@ class MacroPlanCircuitsResponse(BaseModel):
     total_duration_s: float
     content_hash: str
     circuits: list[MacroStopCircuitResponse]
+
+
+class VehicleEndpointRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+    label: str | None = Field(default=None, max_length=255)
+
+
+class VehicleOrderRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    plan_id: str
+    origin: VehicleEndpointRequest
+    destination: VehicleEndpointRequest
+    # Quando omitido, a matriz veicular é calculada e persistida com a
+    # configuração car atual. Quando informado, precisa ser da mesma rota.
+    vehicle_matrix_id: str | None = None
+
+
+class VehicleEndpointResponse(BaseModel):
+    node_id: str
+    latitude: float
+    longitude: float
+    label: str | None
+
+
+class VehicleOrderStepResponse(BaseModel):
+    position: int
+    node_id: str
+    node_role: Literal["origin", "candidate_base", "destination"]
+    delivery_point_id: str | None
+    stop_id: str | None
+    stop_ordinal: int | None
+    label: str | None
+
+
+class VehicleOrderLegResponse(BaseModel):
+    position: int
+    origin_node_id: str
+    destination_node_id: str
+    origin_role: Literal["origin", "candidate_base", "destination"]
+    destination_role: Literal["origin", "candidate_base", "destination"]
+    distance_m: float
+    duration_s: float
+
+
+class VehicleMatrixCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    origin: VehicleEndpointRequest
+    destination: VehicleEndpointRequest
+
+
+class VehicleMatrixEntryResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    origin_node_id: str
+    destination_node_id: str
+    distance_m: float | None
+    duration_s: float | None
+    reachable: bool
+    error_code: str | None
+
+
+class VehicleMatrixResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    route_id: str
+    provider: str
+    profile: str
+    quality: str
+    dataset_revision: str | None
+    input_hash: str
+    input_snapshot: dict | None
+    stale: bool = False
+    point_count: int
+    reachable_pairs: int
+    unreachable_pairs: int
+    created_at: datetime
+    idempotent: bool = False
+
+
+class VehicleOrderResponse(BaseModel):
+    plan_id: str
+    route_id: str
+    vehicle_matrix_id: str
+    matrix_provider: str
+    matrix_profile: str
+    matrix_quality: str
+    matrix_dataset_revision: str | None
+    planning_mode: Literal["strict", "coordinate_preview"]
+    provisional_draft: bool
+    stale: bool
+    idempotent: bool
+    algorithm_version: int
+    order_rule: str
+    distance_basis: str
+    exact_base_limit: int
+    origin: VehicleEndpointResponse
+    destination: VehicleEndpointResponse
+    draft: bool
+    base_status: Literal["unverified"]
+    parking_notice: str
+    gps_notice: str
+    capability_notice: str
+    heuristic_notice: str
+    draft_notice: str
+    geometry_available: bool
+    maneuvers_available: bool
+    voice_available: bool
+    base_count: int
+    package_count: int
+    stop_review_counts: dict[str, int]
+    exact_coverage: bool
+    solution_method: Literal["exact_dynamic_programming", "heuristic_nearest_neighbor_2opt"]
+    optimal: bool
+    total_distance_m: float
+    total_duration_s: float
+    content_hash: str
+    order: list[VehicleOrderStepResponse]
+    legs: list[VehicleOrderLegResponse]

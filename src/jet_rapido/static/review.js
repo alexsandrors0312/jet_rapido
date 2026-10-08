@@ -96,6 +96,12 @@ function updateAvailability() {
     : previewMode ? "O modo por coordenadas aceita entradas pendentes e gera rascunho não homologado; ele não altera o status de revisão."
     : "O modo estrito exige todas as entradas confirmadas ou corrigidas. O agrupamento respeita os limites e preserva cada pacote.";
   $("macro-pending").textContent = points.length ? `${pending} entrada(s) pendente(s) · ${rejected} rejeitada(s). O endereço é apoio de busca e apresentação; o agrupamento usa as coordenadas efetivas.` : "";
+  const vehicleReady = Boolean(provider?.vehicle?.configured);
+  $("create-vehicle-order").disabled = busy || !routeId || !macroPlanId || !vehicleReady;
+  $("vehicle-help").textContent = !vehicleReady
+    ? "Sem provedor veicular de rede configurado. A ordem veicular exige um conjunto de dados OSRM de perfil car próprio; a matriz pedestre e a estimativa em linha reta não substituem a via."
+    : !macroPlanId ? "Selecione ou gere uma proposta de macro-paradas para ordenar as bases."
+    : "A ordem usa a matriz veicular car sobre as bases candidatas. É um rascunho: base não verificada, sem estacionamento confirmado, geometria, manobras ou voz.";
 }
 async function loadHistory(pointId) {
   try {
@@ -121,6 +127,7 @@ async function loadRoute(id) {
   routeId = id; selected = null; dirty = false; matrixId = null; macroPlanId = null; networkMatrices = [];
   $("review-form").hidden = true; $("selection-empty").hidden = false; $("matrix-detail").hidden = true; $("matrices").replaceChildren();
   $("macro-history").replaceChildren(); $("macro-detail").replaceChildren(); $("macro-matrix").replaceChildren();
+  $("vehicle-detail").replaceChildren();
   points = []; renderPoints(); updateDraft();
   if (!id) { $("matrices").replaceChildren(); return; }
   points = await request(`/api/v1/routes/${id}/delivery-points`);
@@ -171,6 +178,8 @@ async function loadMacroPlans() {
 }
 function renderMacroPlan(plan) {
   const detail = $("macro-detail"); detail.replaceChildren();
+  // A ordem veicular pertence a uma proposta; evita exibir a ordem de outra.
+  $("vehicle-detail").replaceChildren();
   const modeLabel = plan.planning_mode === "coordinate_preview" ? "por coordenadas · rascunho não homologado" : "estrito";
   const title = make("h3", `Proposta (${modeLabel}): ${plan.macro_stop_count} macro-paradas para ${plan.package_count} pacotes`);
   const summary = make("p", `${plan.exact_coverage ? "Cobertura exata" : "Cobertura inconsistente"} · ${plan.original_stop_count} paradas originais · ${plan.packages_without_original_stop} pacote(s) sem parada original · ${plan.original_stops_split} parada(s) originais divididas${plan.stale ? " · DESATUALIZADA" : ""}.`);
@@ -208,8 +217,32 @@ function renderMacroPlan(plan) {
     }
     detail.append(card);
   });
+  updateAvailability();
 }
 function pointAddress(pointId) { return points.find(point => point.id === pointId)?.original_address || pointId; }
+function renderVehicleOrder(container, data) {
+  container.replaceChildren();
+  const method = data.optimal ? "solução exata" : `heurística determinística não ótima (${data.solution_method})`;
+  const revision = data.matrix_dataset_revision ? ` · revisão ${data.matrix_dataset_revision.slice(0, 12)}…` : "";
+  container.append(make("h3", `Ordem veicular (etapa 5) · ${data.base_count} base(s) candidata(s)`));
+  container.append(make("p", `${method} · ${Math.round(data.total_distance_m)} m dirigidos · ${Math.round(data.total_duration_s)} s · matriz ${data.matrix_provider} · perfil ${data.matrix_profile}${revision}. Distância como critério primário; duração da mesma sequência e ordem canônica como desempate.`));
+  container.append(make("p", `Partida: ${data.origin.label || "sem rótulo"} (${data.origin.latitude}, ${data.origin.longitude}) · Chegada: ${data.destination.label || "sem rótulo"} (${data.destination.latitude}, ${data.destination.longitude}).`));
+  container.append(make("p", data.parking_notice, "warning"));
+  container.append(make("p", data.draft_notice, data.provisional_draft ? "warning" : ""));
+  container.append(make("p", data.gps_notice, "warning"));
+  const list = document.createElement("ol");
+  data.order.forEach(step => {
+    const caption = step.node_role === "origin" ? `${step.label || "Partida"} (partida)`
+      : step.node_role === "destination" ? `${step.label || "Chegada"} (chegada)`
+      : `Macro-parada ${step.stop_ordinal} · ${pointAddress(step.delivery_point_id)} (base candidata, não é vaga confirmada)`;
+    list.append(make("li", caption));
+  });
+  container.append(list);
+  const legs = make("p", `Pernas dirigidas: ${data.legs.map(leg => `${Math.round(leg.distance_m)} m / ${Math.round(leg.duration_s)} s`).join(" · ")}`);
+  container.append(legs);
+  container.append(make("p", data.capability_notice, "warning"));
+  if (!data.optimal) container.append(make("p", data.heuristic_notice, "warning"));
+}
 function renderCircuits(container, data) {
   container.replaceChildren();
   container.append(make("h3", `Circuitos fechados (etapa 5) · ${data.circuit_count} macro-parada(s)`));
@@ -271,6 +304,25 @@ $("macro-form").onsubmit = event => { event.preventDefault(); action(async () =>
 }); };
 $("macro-mode").onchange = updateAvailability;
 $("allow-unreviewed").onchange = updateAvailability;
+$("vehicle-form").onsubmit = event => { event.preventDefault(); action(async () => {
+  if (!macroPlanId) throw new Error("Selecione ou gere uma proposta de macro-paradas antes de ordenar as bases.");
+  notice("Calculando ordem veicular sobre a matriz car…");
+  const data = await post(`/api/v1/routes/${routeId}/vehicle-orders`, {
+    plan_id: macroPlanId,
+    origin: {
+      label: $("vehicle-origin-label").value || null,
+      latitude: Number($("vehicle-origin-latitude").value),
+      longitude: Number($("vehicle-origin-longitude").value),
+    },
+    destination: {
+      label: $("vehicle-destination-label").value || null,
+      latitude: Number($("vehicle-destination-latitude").value),
+      longitude: Number($("vehicle-destination-longitude").value),
+    },
+  });
+  renderVehicleOrder($("vehicle-detail"), data);
+  notice(`Ordem veicular calculada: ${data.base_count} base(s), ${Math.round(data.total_distance_m)} m dirigidos. Rascunho não homologado: base não verificada e sem estacionamento confirmado.`);
+}); };
 window.addEventListener("beforeunload", event => { if (dirty) { event.preventDefault(); event.returnValue = ""; } });
 initializeMap();
-action(async () => { provider = await request("/api/v1/maps/config"); $("provider").textContent = provider.quality === "estimate_only" ? "Modo de desenvolvimento · estimativa em linha reta. Barreiras e acessos reais não são considerados." : `Rede pedestre · ${provider.provider} · perfil ${provider.profile}`; await loadRoutes(); notice(routeId ? "Rota carregada. Selecione um endereço para conferir a entrada." : "Importe uma planilha .xlsx para iniciar a revisão."); });
+action(async () => { provider = await request("/api/v1/maps/config"); $("provider").textContent = provider.quality === "estimate_only" ? "Modo de desenvolvimento · estimativa em linha reta. Barreiras e acessos reais não são considerados." : `Rede pedestre · ${provider.provider} · perfil ${provider.profile}`; $("vehicle-provider").textContent = provider.vehicle?.configured ? `Rede veicular · ${provider.vehicle.provider} · perfil ${provider.vehicle.profile} · revisão ${(provider.vehicle.dataset_revision || "não informada").slice(0, 12)}…` : provider.vehicle_notice; await loadRoutes(); notice(routeId ? "Rota carregada. Selecione um endereço para conferir a entrada." : "Importe uma planilha .xlsx para iniciar a revisão."); });

@@ -219,3 +219,39 @@ def build_walking_provider(settings: Settings) -> WalkingMatrixProvider:
             snap_radius_m=settings.osrm_snap_radius_m,
         )
     raise ValueError(f"MAP_PROVIDER não suportado: {settings.map_provider}.")
+
+
+# Perfis que representam deslocamento a pé. A ordem veicular nunca usa um extrato
+# desses perfis: o perfil é fixado na extração do grafo e o caminho `/table/v1/...`
+# não o altera.
+PEDESTRIAN_PROFILES = frozenset({"foot", "walking", "pedestrian"})
+
+
+def is_pedestrian_profile(profile: str) -> bool:
+    return (profile or "").strip().lower() in PEDESTRIAN_PROFILES
+
+
+def build_vehicle_provider(settings: Settings) -> OSRMWalkingProvider | None:
+    """Provedor dirigido de rede veicular, separado do provedor pedestre.
+
+    Devolve ``None`` quando não há configuração explícita: a ordem veicular é
+    recusada em vez de reaproveitar a matriz pedestre ou a estimativa local.
+    """
+    if settings.vehicle_map_provider == "unconfigured":
+        return None
+    if settings.vehicle_map_provider == "osrm":
+        if not settings.vehicle_osrm_base_url.strip():
+            raise ValueError("VEHICLE_OSRM_BASE_URL é obrigatório para o provedor veicular OSRM.")
+        if is_pedestrian_profile(settings.vehicle_osrm_profile):
+            raise ValueError(
+                "VEHICLE_OSRM_PROFILE não pode ser pedestre; extraia um conjunto de dados car."
+            )
+        return OSRMWalkingProvider(
+            base_url=settings.vehicle_osrm_base_url,
+            profile=settings.vehicle_osrm_profile,
+            timeout_seconds=settings.vehicle_osrm_timeout_seconds,
+            block_size=settings.vehicle_osrm_block_size,
+            dataset_revision=settings.vehicle_osrm_dataset_revision,
+            snap_radius_m=settings.vehicle_osrm_snap_radius_m,
+        )
+    raise ValueError(f"VEHICLE_MAP_PROVIDER não suportado: {settings.vehicle_map_provider}.")

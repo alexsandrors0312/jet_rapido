@@ -16,12 +16,12 @@ from .circuit_service import CircuitError, build_macro_plan_circuits
 from .config import Settings
 from .database import create_database_engine, create_session_factory
 from .importer import ImportValidationError, import_workbook
-from .maps import MapProviderError, WalkingMatrixProvider, build_walking_provider
+from .maps import MapProviderError, WalkingMatrixProvider, build_vehicle_provider, build_walking_provider
 from .macro_service import (
     MacroPlanError, create_macro_plan, get_macro_plan, list_macro_plans,
     macro_plan_response, review_macro_stop,
 )
-from .models import DeliveryPointReview, WalkingMatrix
+from .models import DeliveryPointReview, VehicleMatrix, VehicleMatrixEntry, WalkingMatrix
 from .repository import (
     confirm_imported_delivery_points,
     get_delivery_point,
@@ -53,10 +53,24 @@ from .schemas import (
     MacroPlanResponse,
     MacroPlanCircuitsResponse,
     MacroStopReviewRequest,
+    VehicleEndpointRequest,
+    VehicleMatrixCreateRequest,
+    VehicleMatrixEntryResponse,
+    VehicleMatrixResponse,
+    VehicleOrderRequest,
+    VehicleOrderResponse,
 )
 from .walking_service import (
     GeographicReviewRequired, InvalidMatrixResult, MatrixLimitExceeded, create_walking_matrix,
     matrix_is_stale,
+)
+from .vehicle_service import (
+    MATRIX_MISSING_NOTICE,
+    VehicleEndpoint,
+    VehicleOrderError,
+    build_vehicle_order,
+    create_vehicle_matrix,
+    vehicle_matrix_is_stale,
 )
 
 
@@ -106,6 +120,7 @@ async def _save_upload(upload: UploadFile, settings: Settings) -> Path:
 def create_app(
     settings: Settings | None = None,
     walking_provider: WalkingMatrixProvider | None = None,
+    vehicle_provider=None,
 ) -> FastAPI:
     settings = settings or Settings.from_env()
     engine = create_database_engine(settings.database_url)
@@ -113,12 +128,15 @@ def create_app(
 
     app = FastAPI(
         title="Jet Rápido API",
-        version="0.6.0",
-        description="Importação auditável, revisão geográfica, matrizes, macro-paradas e circuitos pedestres.",
+        version="0.7.0",
+        description="Importação auditável, revisão geográfica, matrizes, macro-paradas, circuitos pedestres e ordem veicular.",
     )
     app.state.settings = settings
     app.state.engine = engine
     app.state.walking_provider = walking_provider or build_walking_provider(settings)
+    # Provedor veicular é separado: sem configuração explícita a ordem veicular é
+    # recusada, nunca calculada com o perfil pedestre ou com linha reta.
+    app.state.vehicle_provider = vehicle_provider or build_vehicle_provider(settings)
     static_root = Path(__file__).parent / "static"
     app.mount("/static", StaticFiles(directory=static_root), name="static")
 
@@ -129,8 +147,17 @@ def create_app(
     @app.get("/api/v1/maps/config", tags=["mapas"])
     def maps_config():
         provider = app.state.walking_provider
+        vehicle = app.state.vehicle_provider
         return {"provider": provider.name, "quality": provider.quality,
-                "profile": provider.profile, "max_matrix_points": settings.max_matrix_points}
+                "profile": provider.profile, "max_matrix_points": settings.max_matrix_points,
+                "vehicle": {
+                    "configured": vehicle is not None,
+                    "provider": getattr(vehicle, "name", None),
+                    "profile": getattr(vehicle, "profile", None),
+                    "quality": getattr(vehicle, "quality", None),
+                    "dataset_revision": getattr(vehicle, "dataset_revision", None),
+                },
+                "vehicle_notice": None if vehicle is not None else MATRIX_MISSING_NOTICE}
 
     def matrix_response(session, matrix, idempotent=False):
         return WalkingMatrixResponse.model_validate(matrix).model_copy(update={
@@ -430,6 +457,148 @@ def create_app(
         except CircuitError as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
         return MacroPlanCircuitsResponse.model_validate(payload)
+
+    def vehicle_matrix_response(session, matrix, idempotent=False):
+        return VehicleMatrixResponse.model_validate(matrix).model_copy(update={
+            "idempotent": idempotent,
+            "stale": vehicle_matrix_is_stale(session, matrix, app.state.vehicle_provider),
+        })
+
+    def vehicle_endpoint(payload: VehicleEndpointRequest) -> VehicleEndpoint:
+        return VehicleEndpoint(
+            latitude=payload.latitude, longitude=payload.longitude, label=payload.label
+        )
+
+    @app.post(
+        "/api/v1/routes/{route_id}/vehicle-matrices",
+        response_model=VehicleMatrixResponse,
+        status_code=status.HTTP_201_CREATED,
+        tags=["ordem veicular"],
+    )
+    def compute_route_vehicle_matrix(
+        route_id: str,
+        command: VehicleMatrixCreateRequest,
+        response: Response,
+        session: Session = Depends(get_session),
+    ) -> VehicleMatrixResponse:
+        """Matriz dirigida de rede car sobre partida, entrega e chegada."""
+        if not get_route(session, route_id):
+            raise HTTPException(status_code=404, detail="Rota não encontrada.")
+        try:
+            matrix, idempotent = create_vehicle_matrix(
+                session,
+                route_id=route_id,
+                origin=vehicle_endpoint(command.origin),
+                destination=vehicle_endpoint(command.destination),
+                provider=app.state.vehicle_provider,
+                max_points=settings.max_matrix_points,
+            )
+        except VehicleOrderError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        except MapProviderError as error:
+            raise HTTPException(
+                status_code=502,
+                detail="Falha ao consultar a rede veicular; nenhuma matriz foi fabricada.",
+            ) from error
+        if idempotent:
+            response.status_code = status.HTTP_200_OK
+        return vehicle_matrix_response(session, matrix, idempotent)
+
+    @app.get(
+        "/api/v1/vehicle-matrices/{matrix_id}",
+        response_model=VehicleMatrixResponse,
+        tags=["ordem veicular"],
+    )
+    def read_vehicle_matrix(
+        matrix_id: str, session: Session = Depends(get_session)
+    ) -> VehicleMatrixResponse:
+        matrix = session.get(VehicleMatrix, matrix_id)
+        if matrix is None:
+            raise HTTPException(status_code=404, detail="Matriz veicular não encontrada.")
+        return vehicle_matrix_response(session, matrix)
+
+    @app.get(
+        "/api/v1/routes/{route_id}/vehicle-matrices",
+        response_model=list[VehicleMatrixResponse],
+        tags=["ordem veicular"],
+    )
+    def list_vehicle_matrices(
+        route_id: str,
+        limit: int = Query(20, ge=1, le=100),
+        offset: int = Query(0, ge=0),
+        session: Session = Depends(get_session),
+    ) -> list[VehicleMatrixResponse]:
+        if not get_route(session, route_id):
+            raise HTTPException(status_code=404, detail="Rota não encontrada.")
+        matrices = session.scalars(
+            select(VehicleMatrix).where(VehicleMatrix.route_id == route_id)
+            .order_by(VehicleMatrix.created_at.desc(), VehicleMatrix.id)
+            .limit(limit).offset(offset)
+        )
+        return [vehicle_matrix_response(session, matrix) for matrix in matrices]
+
+    @app.get(
+        "/api/v1/vehicle-matrices/{matrix_id}/entries",
+        response_model=list[VehicleMatrixEntryResponse],
+        tags=["ordem veicular"],
+    )
+    def read_vehicle_matrix_entries(
+        matrix_id: str,
+        limit: int = Query(default=1000, ge=1, le=10_000),
+        offset: int = Query(default=0, ge=0),
+        session: Session = Depends(get_session),
+    ) -> list[VehicleMatrixEntryResponse]:
+        if session.get(VehicleMatrix, matrix_id) is None:
+            raise HTTPException(status_code=404, detail="Matriz veicular não encontrada.")
+        entries = session.scalars(
+            select(VehicleMatrixEntry).where(VehicleMatrixEntry.matrix_id == matrix_id)
+            .order_by(VehicleMatrixEntry.origin_node_id, VehicleMatrixEntry.destination_node_id)
+            .limit(limit).offset(offset)
+        )
+        return [VehicleMatrixEntryResponse.model_validate(entry) for entry in entries]
+
+    @app.post(
+        "/api/v1/routes/{route_id}/vehicle-orders",
+        response_model=VehicleOrderResponse,
+        tags=["ordem veicular"],
+    )
+    def create_route_vehicle_order(
+        route_id: str,
+        command: VehicleOrderRequest,
+        response: Response,
+        session: Session = Depends(get_session),
+    ) -> VehicleOrderResponse:
+        """Ordem veicular aberta: partida, cada base uma vez, chegada."""
+        if not get_route(session, route_id):
+            raise HTTPException(status_code=404, detail="Rota não encontrada.")
+        plan = get_macro_plan(session, command.plan_id)
+        if plan is None:
+            raise HTTPException(status_code=404, detail="Proposta não encontrada.")
+        if plan.route_id != route_id:
+            raise HTTPException(
+                status_code=409, detail="A proposta pertence a outra rota."
+            )
+        try:
+            payload = build_vehicle_order(
+                session, plan,
+                origin=vehicle_endpoint(command.origin),
+                destination=vehicle_endpoint(command.destination),
+                vehicle_provider=app.state.vehicle_provider,
+                walking_provider=app.state.walking_provider,
+                exact_base_limit=settings.vehicle_exact_base_limit,
+                max_points=settings.max_matrix_points,
+                vehicle_matrix_id=command.vehicle_matrix_id,
+            )
+        except VehicleOrderError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        except MapProviderError as error:
+            raise HTTPException(
+                status_code=502,
+                detail="Falha ao consultar a rede veicular; nenhuma ordem foi calculada.",
+            ) from error
+        if payload["idempotent"]:
+            response.status_code = status.HTTP_200_OK
+        return VehicleOrderResponse.model_validate(payload)
 
     @app.patch("/api/v1/macro-stops/{stop_id}/review", response_model=MacroPlanResponse, tags=["macro-paradas"])
     def review_stop(stop_id: str, command: MacroStopReviewRequest,

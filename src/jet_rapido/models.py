@@ -70,6 +70,9 @@ class Route(Base):
     macro_plans: Mapped[list["MacroPlan"]] = relationship(
         back_populates="route", cascade="all, delete-orphan"
     )
+    vehicle_matrices: Mapped[list["VehicleMatrix"]] = relationship(
+        back_populates="route", cascade="all, delete-orphan"
+    )
 
 
 class DeliveryPoint(Base):
@@ -201,6 +204,66 @@ class WalkingMatrixEntry(Base):
     error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     matrix: Mapped[WalkingMatrix] = relationship(back_populates="entries")
+
+
+class VehicleMatrix(Base):
+    """Matriz dirigida de rede veicular sobre a partida, as bases e a chegada.
+
+    Os nós não são apenas pontos de entrega: ``origin`` e ``destination`` são
+    identificadores sintéticos definidos pela requisição. Por isso as entradas
+    guardam o identificador do nó, não uma chave estrangeira de ponto.
+    """
+
+    __tablename__ = "vehicle_matrices"
+    __table_args__ = (
+        UniqueConstraint(
+            "route_id", "provider", "profile", "input_hash",
+            name="uq_vehicle_matrix_route_input",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    route_id: Mapped[str] = mapped_column(
+        ForeignKey("routes.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    provider: Mapped[str] = mapped_column(String(64), nullable=False)
+    profile: Mapped[str] = mapped_column(String(64), nullable=False)
+    quality: Mapped[str] = mapped_column(String(32), nullable=False)
+    dataset_revision: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    input_snapshot: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    point_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    reachable_pairs: Mapped[int] = mapped_column(Integer, nullable=False)
+    unreachable_pairs: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+
+    route: Mapped[Route] = relationship(back_populates="vehicle_matrices")
+    entries: Mapped[list["VehicleMatrixEntry"]] = relationship(
+        back_populates="matrix", cascade="all, delete-orphan"
+    )
+
+
+class VehicleMatrixEntry(Base):
+    __tablename__ = "vehicle_matrix_entries"
+    __table_args__ = (
+        UniqueConstraint(
+            "matrix_id", "origin_node_id", "destination_node_id",
+            name="uq_vehicle_matrix_entry_pair",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    matrix_id: Mapped[str] = mapped_column(
+        ForeignKey("vehicle_matrices.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    origin_node_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    destination_node_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    distance_m: Mapped[float | None] = mapped_column(Float, nullable=True)
+    duration_s: Mapped[float | None] = mapped_column(Float, nullable=True)
+    reachable: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+    matrix: Mapped[VehicleMatrix] = relationship(back_populates="entries")
 
 
 class DeliveryPointReview(Base):
